@@ -1,0 +1,77 @@
+<Window x:Class="DeviceMonitor.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        Title="DeviceMonitor - 串口设备采集监控" Height="700" Width="1100">
+
+    <!--
+        界面骨架（占位版）：功能从 D15 起逐步点亮。
+        按设计文档 §6.7 布局：工具栏 / 设备列表 / 实时表格 / 曲线区 / 状态栏。
+    -->
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- 工具栏（占位：D15 起绑定 ViewModel 命令） -->
+        <ToolBarTray Grid.Row="0">
+            <ToolBar>
+                <Button Content="启动采集" IsEnabled="False" ToolTip="TODO D15: 绑定 RelayCommand"/>
+                <Button Content="停止采集" IsEnabled="False"/>
+                <Separator/>
+                <Button Content="添加设备..." IsEnabled="False" ToolTip="TODO D16"/>
+                <Button Content="编辑设备..." IsEnabled="False"/>
+                <Separator/>
+                <Button Content="历史查询..." IsEnabled="False" ToolTip="TODO D20"/>
+                <Button Content="导出报表..." IsEnabled="False" ToolTip="TODO D22"/>
+            </ToolBar>
+        </ToolBarTray>
+
+        <!-- 主体 -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="240"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- 左侧：设备列表（占位） -->
+            <Border Grid.Column="0" BorderBrush="Gray" BorderThickness="0,0,1,0">
+                <StackPanel Margin="10">
+                    <TextBlock Text="设备列表" FontWeight="Bold"/>
+                    <TextBlock Text="D15~D17 实现：设备树 + 在线状态圆点" TextWrapping="Wrap"
+                               Foreground="Gray" Margin="0,6,0,0" FontSize="12"/>
+                    <ListBox Margin="0,10,0,0" IsEnabled="False">
+                        <ListBoxItem>● COM3  温控器（模拟）</ListBoxItem>
+                        <ListBoxItem>● COM5  锅炉（模拟）</ListBoxItem>
+                    </ListBox>
+                </StackPanel>
+            </Border>
+
+            <!-- 右侧：实时表格 + 曲线 -->
+            <Grid Grid.Column="1" Margin="10">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" Text="实时数据表（D17 实现）" FontWeight="Bold"/>
+                <DataGrid Grid.Row="1" Margin="0,6" IsEnabled="False" AutoGenerateColumns="True"/>
+
+                <TextBlock Grid.Row="2" Text="实时曲线 — ScottPlot 区域（D18 实现，包需联网安装）"
+                           FontWeight="Bold" Margin="0,12,0,0"/>
+            </Grid>
+        </Grid>
+
+        <!-- 状态栏 -->
+        <StatusBar Grid.Row="2">
+            <StatusBarItem>
+                <TextBlock Text="就绪 — D1~D2 骨架已完成；协议层与通信自 D3 起按设计文档开发"/>
+            </StatusBarItem>
+        </StatusBar>
+    </Grid>
+</Window>
