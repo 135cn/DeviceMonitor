@@ -60,10 +60,6 @@ public static class ModbusRtuCodec
         ushort crc = Crc16.Compute(body);
 
         return Crc16.AppendLittleEndian(body, crc);
-
-        // TODO D4: 校验 functionCode ∈ {3,4}、quantity ∈ [1,125]，
-        //          组装 6 字节请求体（高字节在前），再用 Crc16.AppendLittleEndian 追加校验。
-        //throw new NotImplementedException("D4: 按设计文档 §6.2 实现组帧");
     }
 
     /// <summary>
@@ -74,20 +70,71 @@ public static class ModbusRtuCodec
     /// <param name="functionCode">期望的功能码（3 或 4）。</param>
     /// <param name="values">成功时为解析出的寄存器原始值数组。</param>
     /// <param name="errorCode">异常响应时为异常码（01~04），否则为 null。</param>
-    /// <returns>true 表示正常响应；false 表示异常响应或校验失败。</returns>
+    /// <returns>
+    /// true 表示正常响应；
+    /// false 时：errorCode 非 null → 从站异常响应；errorCode 为 null → 该帧不可信（短帧 / CRC 错 / 地址或功能码不符）。
+    /// </returns>
     public static bool TryParseReadResponse(
         ReadOnlySpan<byte> frame, byte slaveId, byte functionCode,
         out ushort[]? values, out byte? errorCode)
     {
-        // TODO D5: 
-        //  1) 长度 < 5 → false；
-        //  2) frame[0] != slaveId → false；
-        //  3) frame[1] == (functionCode | 0x80) → 异常响应，errorCode = frame[2]；
-        //  4) frame[1] != functionCode → false；
-        //  5) 校验 CRC（重算 frame[0..^2] 与 frame[^2..] 比对）；
-        //  6) byteCount == 2N，逐寄存器 (hi<<8)|lo 组装 ushort[]。
         values = null;
         errorCode = null;
-        throw new NotImplementedException("D5: 按设计文档 §6.2 实现解析");
+
+        // 0) 功能码参数非法属于调用方编程错误 → 抛异常（与 BuildReadRequest 一致）
+        if (functionCode is not (3 or 4))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(functionCode), functionCode, "仅支持功能码 3(保持寄存器) / 4(输入寄存器)。");
+        }
+
+        // 1) 最小长度：最小合法帧（异常响应）就是 5 字节
+        if (frame.Length < 5)
+            return false;
+
+        // 2) 从站地址必须匹配（不匹配通常是上一帧的残留响应）
+        if (frame[0] != slaveId)
+            return false;
+
+        // 3) 功能码：等于期望值，或等于 期望值 | 0x80（异常响应）
+        if (frame[1] != functionCode && frame[1] != (byte)(functionCode | 0x80))
+            return false;
+
+        // 4) CRC 校验：放在异常分支之前，异常帧本身也要保证完整可信
+        ushort crcInFrame = (ushort)(frame[^2] | (frame[^1] << 8));
+        if (Crc16.Compute(frame[..^2]) != crcInFrame)
+            return false;
+
+        // 5) 异常响应：固定 5 字节，取异常码
+        if (frame[1] == (byte)(functionCode | 0x80))
+        {
+            if (frame.Length != 5)
+                return false;
+
+            errorCode = frame[2];
+            return false;
+        }
+
+        // 6) 正常响应：字节数必须非零、偶数、不超协议上限
+        int byteCount = frame[2];
+        if (byteCount == 0 || byteCount % 2 != 0 || byteCount > MaxReadQuantity * 2)
+            return false;
+
+        // 与帧长自洽：少字节（半包）或多字节（粘包残留）都判失败
+        if (frame.Length != byteCount + 5)
+            return false;
+
+        // 7) 逐寄存器组装：每个寄存器高字节在前
+        int registerCount = byteCount / 2;
+        var result = new ushort[registerCount];
+        for (int i = 0; i < registerCount; i++)
+        {
+            int high = frame[3 + i * 2];
+            int low = frame[4 + i * 2];
+            result[i] = (ushort)(high << 8 | low);
+        }
+
+        values = result;
+        return true;
     }
 }
