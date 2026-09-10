@@ -1,5 +1,5 @@
-using System.IO.Ports;
 using DeviceMonitor.Core.Models;
+using System.IO.Ports;
 
 namespace DeviceMonitor.Core.Channels;
 
@@ -27,15 +27,42 @@ public sealed class SerialChannel : IDeviceChannel
         lock (_ioLock)
         {
             if (IsOpen)
-                Close();
-            _port = new SerialPort(_config.PortName, _config.BaudRate);
-            
+                return;             // 幂等：已打开就直接返回
 
+            Close();                // 清掉可能残留的旧对象（_port 为 null 时是空操作，lock 可重入）
 
-            // TODO D8: 依据 _config 创建 SerialPort（PortName/BaudRate/DataBits/Parity/StopBits，
-            //          ReadTimeout/WriteTimeout = _config.ReadTimeoutMs），
-            //          捕获 UnauthorizedAccessException / IOException / ArgumentException 并重抛友好异常。
-            throw new NotImplementedException("D8: 按设计文档 §6.3 实现 Open/Close");
+            SerialPort? port = null;
+
+            try
+            {
+                // 构造与属性赋值也放进 try：PortName 为空、超时为负等都会在这里抛 ArgumentException
+                port = new SerialPort(
+                    _config.PortName, _config.BaudRate, _config.Parity, _config.DataBits, _config.StopBits)
+                {
+                    ReadTimeout = _config.ReadTimeoutMs,
+                    WriteTimeout = _config.ReadTimeoutMs,
+                    Handshake = Handshake.None,
+                };
+
+                port.Open();
+                port.DiscardInBuffer();   // 丢掉遗留字节，保证第一帧干净
+                _port = port;             // 只有打开成功才发布，避免暴露半初始化对象
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                port?.Dispose();
+                throw new InvalidOperationException($"串口 {_config.PortName} 被占用或权限不足。", ex);
+            }
+            catch (ArgumentException ex)   // 含 ArgumentNullException / ArgumentOutOfRangeException
+            {
+                port?.Dispose();
+                throw new InvalidOperationException($"串口 {_config.PortName} 不存在或参数非法。", ex);
+            }
+            catch (IOException ex)
+            {
+                port?.Dispose();
+                throw new InvalidOperationException($"串口 {_config.PortName} 打开失败。", ex);
+            }
         }
     }
 
@@ -43,8 +70,23 @@ public sealed class SerialChannel : IDeviceChannel
     {
         lock (_ioLock)
         {
-            // TODO D8: 关闭并释放 _port（幂等；关闭期间再触发 IO 的异常要吞掉并记日志）
-            throw new NotImplementedException("D8");
+            if (_port is null)
+                return;                 // 幂等
+
+            SerialPort port = _port;
+            _port = null;               // 先摘引用：关闭期间的任何回调都不会再拿到它
+
+            try
+            {
+                if (port.IsOpen)
+                    port.Close();
+            }
+            catch (IOException) { /* 关闭过程中的 IO 异常忽略，不向上抛 */ }
+            catch (InvalidOperationException) { }
+            finally
+            {
+                port.Dispose();
+            }
         }
     }
 
@@ -71,9 +113,5 @@ public sealed class SerialChannel : IDeviceChannel
         throw new NotImplementedException("D9");
     }
 
-    public void Dispose()
-    {
-        // TODO D8: Close() 并释放串口对象
-        throw new NotImplementedException("D8");
-    }
+    public void Dispose() => Close();
 }
