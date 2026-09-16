@@ -1,4 +1,5 @@
 using DeviceMonitor.Core.Models;
+using System.Diagnostics;
 using System.IO.Ports;
 
 namespace DeviceMonitor.Core.Channels;
@@ -92,25 +93,93 @@ public sealed class SerialChannel : IDeviceChannel
 
     public void DiscardInBuffer()
     {
-        // TODO D9: _port?.DiscardInBuffer()（在锁内调用）
-        throw new NotImplementedException("D9");
-    }
-
-    public void Write(ReadOnlySpan<byte> frame)
-    {
         lock (_ioLock)
         {
-            // TODO D9: 校验 IsOpen；_port.Write(frame)；写超时由 WriteTimeout 保证
-            throw new NotImplementedException("D9");
+
+            if (_port is null || !_port.IsOpen)
+                return;
+
+            _port.DiscardInBuffer();
+
+        }
+
+    }
+
+    /// <summary>发送一整帧。未打开或空帧属于调用方错误，直接抛异常。</summary>
+    public void Write(ReadOnlySpan<byte> frame)
+    {
+        if (frame.Length == 0)
+        {
+            throw new ArgumentException("要发送的帧不能为空。", nameof(frame));
+        }
+
+        lock (_ioLock)
+        {
+            if (_port is null || !_port.IsOpen)
+                throw new InvalidOperationException($"串口 {_config.PortName} 未打开，不能发送数据。");
+
+
+            _port.BaseStream.Write(frame);
         }
     }
 
+
+    /// <summary>
+    /// 在 timeoutMs 内收满 expectedLength 个字节。
+    ///
+    /// 语义边界：只负责"收齐 N 字节"，不做协议校验（CRC、功能码、帧同步由 ModbusRtuCodec 负责）。
+    /// 异常约定：
+    ///   - 超时（从站未响应/响应慢）      → 返回 null，调用方记一次失败、下个周期重试；
+    ///   - IOException / InvalidOperationException（端口被拔出、已关闭）→ 向上抛，调用方应判定离线并重连。
+    /// 注意：本方法在锁内阻塞最长 timeoutMs，因此停止采集最多延迟一个读超时。
+    /// </summary>
     public byte[]? ReadFrame(int expectedLength, int timeoutMs)
     {
-        // TODO D9: 循环 _port.Read 累积字节到缓冲（MemoryStream/List<byte>），
-        //          用 Stopwatch 控制整体超时；收满 expectedLength 返回；
-        //          超时返回 null；若某次 Read 抛 TimeoutException 则按整体超时处理。
-        throw new NotImplementedException("D9");
+       if(expectedLength <= 0)
+            throw new ArgumentOutOfRangeException(
+                nameof(expectedLength), expectedLength, "期望长度必须大于 0。");
+
+
+        if (timeoutMs <= 0)
+            throw new ArgumentOutOfRangeException(
+                nameof(timeoutMs), timeoutMs, "超时必须大于 0 毫秒。");
+
+        lock (_ioLock)
+        {
+            if(_port is null || !_port.IsOpen)
+                throw new InvalidOperationException($"串口 {_config.PortName} 未打开，不能读取数据。");
+
+            var buffer = new byte[expectedLength];
+            int collected = 0;
+            var stopwatch = Stopwatch.StartNew();
+
+            while(collected < expectedLength)
+            {
+                int remaining = timeoutMs - (int)stopwatch.ElapsedMilliseconds;
+                if (remaining <= 0)
+                    return null;// 整体预算用尽
+
+                // 单次读最多只等"剩余预算"，否则一次 Read 就可能超出整体超时
+                // 用 Max(1, ...) 而不是 0：0 的超时语义在不同实现下容易踩坑
+                _port.ReadTimeout = Math.Max(1, remaining);
+
+                try
+                {
+                    int read = _port.Read(buffer, collected, expectedLength - collected);
+                    if (read <= 0)
+                        return null;// 防御：正常情况下 Read 不会返回 0
+
+                    collected += read;// 半包：分几次到达也没关系，凑够才返回
+                }
+                catch (TimeoutException)
+                {
+                    return null;
+                }
+            }
+
+            return buffer;
+
+        }
     }
 
     public void Dispose() => Close();

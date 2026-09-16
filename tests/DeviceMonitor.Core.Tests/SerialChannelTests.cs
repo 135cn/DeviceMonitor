@@ -12,6 +12,7 @@ namespace DeviceMonitor.Core.Tests;
 /// 没有对应端口时用 Assert.Skip 跳过，不会把测试套件拖红。
 /// 打开不存在的端口 / 未打开就 Close/Dispose 这类用例不依赖硬件，任何机器都能跑。
 /// </summary>
+[Collection("SerialHardware")]   // 串口是独占资源：与其它串口测试类串行执行，避免"被占用"假失败
 public class SerialChannelTests
 {
     /// <summary>测试用虚拟串口（VSPD 建立的一对之一，避开被蓝牙占用的 COM3~COM8）。</summary>
