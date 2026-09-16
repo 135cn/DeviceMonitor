@@ -30,4 +30,8 @@ public sealed class DeviceConfig
 
     /// <summary>该设备下要轮询的采集点。</summary>
     public List<PointConfig> Points { get; set; } = new();
+    /// <summary>连续失败达到该次数即判定离线并进入退避重连。</summary>
+    public int OfflineErrorThreshold { get; set; } = 3;
+    /// <summary>判定离线后的重连间隔（毫秒）。</summary>
+    public int ReconnectIntervalMs { get; set; } = 5000;
 }

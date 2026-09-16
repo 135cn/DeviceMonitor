@@ -24,4 +24,7 @@ public sealed class DeviceRuntime
 
     /// <summary>累计成功采集的样本数。</summary>
     public long TotalSamples { get; set; }
+
+    /// <summary>最近一次失败原因（成功后清空）。</summary>
+    public string? LastError { get; set; }
 }
