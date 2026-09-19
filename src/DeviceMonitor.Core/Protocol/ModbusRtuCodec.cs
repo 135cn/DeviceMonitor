@@ -137,4 +137,144 @@ public static class ModbusRtuCodec
         values = result;
         return true;
     }
+
+
+    /// <summary>
+    /// 解析从站收到的请求帧（从站侧）。
+    /// 只判断"这一帧本身是否合法"：最小长度、CRC、功能码与长度是否自洽；
+    /// **不做从站地址过滤**（由调用方决定要不要响应），也未支持的功能码会照常返回，
+    /// 以便从站回一个「非法功能码」异常响应，而不是静默丢弃。
+    /// </summary>
+    public static bool TryParseRequest(ReadOnlySpan<byte> frame, out ModbusRequest? request)
+    {
+        request = null;
+
+        // 最小帧：地址(1) + 功能码(1) + CRC(2)
+        if (frame.Length < 4)
+            return false;
+
+        // CRC 归零性质：完整合法帧再算一次 CRC 结果为 0
+        if (Crc16.Compute(frame)  != 0)
+            return false;
+
+        byte slaveId = frame[0];
+        byte functionCode = frame[1];
+
+        switch (functionCode)
+        {
+            // 03/04/06 请求固定 8 字节：地址 + 功能码 + 起始地址(2) + 数量或值(2) + CRC(2)
+            case 0x03:
+            case 0x04:
+                if (frame.Length != 8)
+                    return false;
+
+                request = new ModbusRequest(
+                    slaveId, functionCode,
+                    (ushort)(frame[2] << 8 | frame[3]),
+                    (ushort)(frame[4] << 8 | frame[5]),
+                    Array.Empty<ushort>());
+                return true;
+
+            // ⚠️ 06 的第 5~6 字节是"要写入的值"，不是数量！这里统一成 Quantity=1 + Data=[值]
+            case 0x06:
+                if(frame.Length != 8)
+                    return false;
+
+                request = new ModbusRequest(
+                    slaveId, functionCode,
+                    (ushort)(frame[2] << 8 | frame[3]),
+                    1,
+                    new[] { (ushort)(frame[4] << 8 | frame[5]) });
+                return true;
+
+            // 10：地址 + 功能码 + 起始(2) + 数量(2) + 字节数(1) + 数据(2N) + CRC(2)
+            case 0x10:
+                {
+                    if(frame.Length < 9)
+                        return false;
+
+                    int byteCount = frame[6];
+                    if(byteCount== 0 || byteCount % 2 != 0 || frame.Length != 9 + byteCount)
+                        return false;
+
+                    int registerCount = byteCount / 2;
+
+                    var values = new ushort[registerCount];
+                    for (int i = 0; i < registerCount; i++)
+                        values[i] = (ushort)(frame[7 + i * 2]<< 8 |  frame[8 + i * 2]);
+
+                    request = new ModbusRequest(
+                        slaveId, functionCode,
+                        (ushort)(frame[2] << 8 | frame[3]),
+                        (ushort)(frame[4] << 8 | frame[5]),
+                        values);
+
+                    return true;
+                }
+
+            default:
+                // 未知功能码：帧长规则不清楚，只取出地址与功能码，交给从站回异常码 01
+                request = new ModbusRequest(
+                    slaveId,functionCode,0,0,Array.Empty<ushort>());
+                return true;
+        }
+    }
+
+
+
+    /// <summary>构造读响应帧（从站侧）：地址 + 功能码 + 字节数(2N) + 数据(高字节在前) + CRC。</summary>
+    public static byte[] BuildReadResponse(byte slaveId, byte functionCode, ReadOnlySpan<ushort> values)
+    {
+        if(values.Length is 0 or > MaxReadQuantity)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(values), values.Length, $"寄存器个数必须在 1~{MaxReadQuantity} 之间。");
+        }
+
+        var body = new byte[3 + values.Length * 2];
+        body[0] = slaveId;
+        body[1] = functionCode;
+        body[2] = (byte)(values.Length * 2);
+
+        for (int i = 0; i < values.Length; i++)
+        {
+            body[3 + i * 2] = (byte)(values[i] >> 8);
+            body[4 + i * 2] = (byte)(values[i] & 0xFF);
+        }
+
+        return Crc16.AppendLittleEndian(body, Crc16.Compute(body));
+    }
+
+    /// <summary>
+    /// 构造写响应帧（从站侧）。06 与 10 的响应布局相同（地址 + 功能码 + 起始地址 + 第 4 个 16 位字段 + CRC），
+    /// 区别只在第 4 个字段的含义：06 是「写入的寄存器值」（响应即回显请求），10 是「写入的寄存器数量」。
+    /// </summary>
+    public static byte[] BuildWriteResponse(byte slaveId, byte functionCode, ushort startAddress, ushort valueOrQuantity)
+    {
+        if (functionCode is not (0x06 or 0x10))
+            throw new ArgumentOutOfRangeException(
+                nameof(functionCode), functionCode, "写响应仅支持功能码 06 与 10。");
+
+        var body = new byte[6];
+        body[0] = slaveId;
+        body[1] = functionCode;
+        body[2] = (byte)(startAddress >> 8);
+        body[3] = (byte)(startAddress & 0xFF);
+        body[4] = (byte)(valueOrQuantity >> 8);
+        body[5] = (byte)(valueOrQuantity & 0xFF);
+        
+        return Crc16.AppendLittleEndian(body,Crc16.Compute(body));
+    }
+
+
+    /// <summary>构造异常响应帧（从站侧）：地址 + (功能码|0x80) + 异常码 + CRC = 5 字节。</summary>
+    public static byte[] BuildExceptionResponse(byte slaveId, byte function, ModbusExceptionCode code)
+    {
+        var body = new byte[] { slaveId, (byte)(function | 0x80),(byte)code  };
+
+        return Crc16.AppendLittleEndian(body,Crc16.Compute(body));
+    }
+
+
+
 }

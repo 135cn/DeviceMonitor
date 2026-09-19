@@ -206,7 +206,7 @@ public sealed class CollectorService
                     frame, _config.SlaveId, point.FunctionCode, out ushort[]? values, out byte? errorCode))
             {
                 throw errorCode is not null
-                    ? new InvalidDataException($"从站异常响应：{DescribeExceptionCode(errorCode.Value)}。")
+                    ? new InvalidDataException($"从站异常响应：{ModbusExceptionDescriptions.Describe(errorCode.Value)}。")
                     : new InvalidDataException("响应帧无效（CRC 校验失败或结构不合法）。");
             }
 
@@ -239,14 +239,7 @@ public sealed class CollectorService
     private static bool IsChannelFault(Exception ex) =>
         ex is IOException or InvalidOperationException or UnauthorizedAccessException;
 
-    private static string DescribeExceptionCode(byte code) => code switch
-    {
-        0x01 => "非法功能码",
-        0x02 => "非法数据地址",
-        0x03 => "非法数据值",
-        0x04 => "从站设备故障",
-        _ => $"未知异常码 0x{code:X2}",
-    };
+
 
     private void SetState(DeviceState state)
     {
