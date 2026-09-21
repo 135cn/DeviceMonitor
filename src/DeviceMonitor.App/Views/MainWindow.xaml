@@ -1,0 +1,143 @@
+<Window x:Class="DeviceMonitor.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:DeviceMonitor.App" xmlns:viewmodels="clr-namespace:DeviceMonitor.App.ViewModels" d:DataContext="{d:DesignInstance Type=viewmodels:MainViewModel}"
+        mc:Ignorable="d"
+        Title="DeviceMonitor - 串口设备采集监控" Height="760" Width="1220">
+
+    <Window.Resources>
+        <local:DeviceStateToBrushConverter x:Key="StateToBrush"/>
+    </Window.Resources>
+    <!--
+        界面骨架（占位版）：功能从 D15 起逐步点亮。
+        按设计文档 §6.7 布局：工具栏 / 设备列表 / 实时表格 / 曲线区 / 状态栏。
+    -->
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- 工具栏（占位：D15 起绑定 ViewModel 命令） -->
+        <ToolBarTray Grid.Row="0">
+            <ToolBar>
+                <Button Content="启动采集" Command="{Binding StartAllCommand}"/>
+                <Button Content="停止采集" Command="{Binding StopAllCommand}"/>
+                <Separator/>
+                <Button Content="添加设备..." IsEnabled="False" ToolTip="TODO D16"/>
+                <Button Content="编辑设备..." IsEnabled="False"/>
+                <Separator/>
+                <Button Content="清空数据" Command="{Binding ClearPointsCommand}"/>
+                <Button Content="历史查询..." IsEnabled="False" ToolTip="TODO D20"/>
+                <Button Content="导出报表..." IsEnabled="False" ToolTip="TODO D22"/>
+            </ToolBar>
+        </ToolBarTray>
+
+        <!-- 主体 -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="240" MinWidth="180"/>
+                <ColumnDefinition Width="4"/>
+                <ColumnDefinition Width="*" MinWidth="420"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- 左侧：设备列表（占位） -->
+            <Border Grid.Column="0" BorderBrush="#DDD" BorderThickness="0,0,1,0">
+                <DockPanel Margin="8">
+                    <TextBlock DockPanel.Dock="Top" Text="设备列表" FontWeight="Bold" Margin="0,0,0,6"/>
+                    <ListBox ItemsSource="{Binding Devices}"
+                             SelectedItem="{Binding SelectedDevice, Mode=TwoWay}"
+                             BorderThickness="0">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="0,2,0,0">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Ellipse Width="10" Height="10" Margin="0,0,6,0" VerticalAlignment="Center"
+                                                 Fill="{Binding State, Converter={StaticResource StateToBrush}}"/>
+                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold"/>
+                                        <TextBlock Text="{Binding StateText}" Foreground="#888" Margin="6,0,0,0"/>
+                                    </StackPanel>
+                                    <TextBlock Text="{Binding PortName}" Foreground="#999" FontSize="11" Margin="16,2,0,0"/>
+                                    <TextBlock Text="{Binding LastError}" Foreground="#C33" FontSize="11" TextWrapping="Wrap" Margin="16,2,0,0"/>
+                                    <ItemsControl ItemsSource="{Binding Points}" Margin="16,4,0,0">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock FontSize="11" Foreground="#666">
+                                                    <Run Text="{Binding Name, Mode=OneWay}"/>
+                                                    <Run Text=" = "/>
+                                                    <Run Text="{Binding DisplayText, Mode=OneWay}"/>
+                                                    <Run Text="{Binding Unit, Mode=OneWay}"/>
+                                                </TextBlock>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Border>
+
+            <!-- 右侧：实时表格 + 曲线 -->
+            <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Stretch" Background="#EEE"/>
+            <Grid Grid.Column="2" Margin="10,8,10,8">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" MinHeight="140"/>
+                    <RowDefinition Height="4"/>
+                    <RowDefinition Height="230" MinHeight="90"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+
+                <DataGrid Grid.Row="0"
+                          ItemsSource="{Binding AllPoint}"
+                          AutoGenerateColumns="False" IsReadOnly="True"
+                          CanUserAddRows="False" HeadersVisibility="Column"
+                          GridLinesVisibility="Horizontal"
+                          EnableRowVirtualization="True"
+                          AlternatingRowBackground="#FAFAFA">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="设备" Binding="{Binding DeviceName}" Width="130"/>
+                        <DataGridTextColumn Header="点位" Binding="{Binding Name}" Width="110"/>
+                        <DataGridTextColumn Header="原始值" Binding="{Binding RawValue}" Width="90"/>
+                        <DataGridTextColumn Header="工程值" Binding="{Binding DisplayText}" Width="90"/>
+                        <DataGridTextColumn Header="单位" Binding="{Binding Unit}" Width="60"/>
+                        <DataGridTextColumn Header="更新时间"
+                                            Binding="{Binding LastUpdatedUtc, StringFormat='HH:mm:ss.fff'}"
+                                            Width="130"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+                <GridSplitter Grid.Row="1" Height="4" HorizontalAlignment="Stretch" Background="#EEE"/>
+                <!-- 曲线区（D18 换成 ScottPlot.WPF 的控件） -->
+                <Border Grid.Row="2" BorderBrush="#DDD" BorderThickness="1" Background="#FAFAFA">
+                    <TextBlock Text="实时曲线区（D18 用 ScottPlot.WPF 实现）" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#999"/>
+                </Border>
+
+                <TabControl Grid.Row="3" Height="130" Margin="0,8,0,0">
+                    <TabItem Header="实时报警">
+                        <TextBlock Text="报警列表（D21 实现）" Margin="10" Foreground="#999"/>
+                    </TabItem>
+                    <TabItem Header="运行日志">
+                        <TextBlock Text="运行日志" Margin="10" Foreground="#999"/>
+                    </TabItem>
+                </TabControl>
+            </Grid>
+        </Grid>
+
+        <!-- 状态栏 -->
+        <StatusBar Grid.Row="2">
+            <StatusBarItem>
+                <TextBlock Text="{Binding StateText}"/>
+            </StatusBarItem>
+            <StatusBarItem HorizontalAlignment="Right">
+                <TextBlock>
+                    <Run Text="累计样本 "/><Run Text="{Binding ReceivedSampleCount,Mode=OneWay}"/>
+                    <Run Text=" 最后刷新 "/><Run Text="{Binding LastRefreshText, Mode=OneWay}"/>
+                </TextBlock>
+            </StatusBarItem>
+        </StatusBar>
+    </Grid>
+</Window>

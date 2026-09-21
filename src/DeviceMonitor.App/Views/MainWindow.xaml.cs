@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿using DeviceMonitor.App.ViewModels;
+using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
@@ -16,8 +17,18 @@ namespace DeviceMonitor.App;
 /// </summary>
 public partial class MainWindow : Window
 {
-    public MainWindow()
+    private readonly MainViewModel _viewModels;
+    public MainWindow(MainViewModel viewModel)
     {
         InitializeComponent();
+        _viewModels = viewModel;
+        DataContext = viewModel;
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        if(_viewModels.StopAllCommand.CanExecute(null))
+            _viewModels.StopAllCommand.Execute(null);
+        base.OnClosed(e);
     }
 }
