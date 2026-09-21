@@ -11,13 +11,15 @@ namespace DeviceMonitor.Core.Tests;
 ///
 /// 这是一条**跨进程 + 依赖虚拟串口**的测试，正常运行时会自动跳过；要执行它：
 ///
-///   1) 先用 VSPD / com0com 建立一对虚拟串口（默认约定 COM1 &lt;-&gt; COM2）；
-///   2) 终端 A 启动模拟器（监听配对中的另一个端口）：
-///        dotnet run --project src/DeviceMonitor.Simulator -- --port COM2 --slave 1 --points 6 --verbose
-///   3) 终端 B 打开开关并跑测试：
+///   1) 先用 VSPD / com0com 建立一对虚拟串口（全项目统一约定 COM9 &lt;-&gt; COM10）；
+///   2) 终端 A 启动模拟器（从站侧，监听 COM10）：
+///        dotnet run --project src/DeviceMonitor.Simulator -- --port COM10 --slave 1 --points 6 --verbose
+///   3) 终端 B 打开开关并跑测试（主站侧连 COM9）：
 ///        $env:SIMULATOR_E2E = '1'; dotnet test tests/DeviceMonitor.Core.Tests
 ///
-/// 可用 SIMULATOR_E2E_PORT 指定主站端口（默认 COM1）。
+/// 可用 SIMULATOR_E2E_PORT 指定主站端口（默认 COM9）。
+/// 注意：模拟器运行期间会独占 COM10，此时 SerialChannelLoopbackTests 这类"需要两个端口都空闲"
+/// 的用例会失败——要跑全量测试请先停掉模拟器。
 /// </summary>
 [Collection("SerialHardware")]   // 串口是独占资源：与其它串口测试串行执行
 public class SimulatorIntegrationTests
@@ -26,7 +28,7 @@ public class SimulatorIntegrationTests
         Environment.GetEnvironmentVariable("SIMULATOR_E2E") == "1";
 
     private static string MasterPort =>
-        Environment.GetEnvironmentVariable("SIMULATOR_E2E_PORT") ?? "COM1";
+        Environment.GetEnvironmentVariable("SIMULATOR_E2E_PORT") ?? "COM9";
 
     private const byte SlaveId = 1;
 
@@ -40,7 +42,7 @@ public class SimulatorIntegrationTests
 
         if (!SerialPort.GetPortNames().Contains(MasterPort))
         {
-            Assert.Skip($"本机没有 {MasterPort}（需要 VSPD 建立 COM1 <-> COM2 之类的配对）");
+            Assert.Skip($"本机没有 {MasterPort}（需要 VSPD 建立 COM9 <-> COM10 之类的配对）");
         }
     }
 

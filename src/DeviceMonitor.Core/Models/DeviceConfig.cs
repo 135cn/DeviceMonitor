@@ -13,7 +13,8 @@ public sealed class DeviceConfig
     /// <summary>设备名，如 "温控器"。</summary>
     public string Name { get; set; } = "新设备";
 
-    public string PortName { get; set; } = "COM3";
+    /// <summary>上位机侧端口。全项目约定：COM9/COM11 为上位机侧，对应模拟器监听 COM10/COM12。</summary>
+    public string PortName { get; set; } = "COM9";
     public int BaudRate { get; set; } = 9600;
     public int DataBits { get; set; } = 8;
     public Parity Parity { get; set; } = Parity.None;

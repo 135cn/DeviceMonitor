@@ -6,9 +6,9 @@ using System.Threading.Channels;
 namespace DeviceMonitor.Core.Services;
 
 /// <summary>
-/// 采集服务 —— 面试重点模块（D10~D14 实现）。
+/// 采集服务。
 ///
-/// 职责（设计文档 §6.4）：
+/// 职责：
 ///  - 每台设备一个后台轮询任务：一问一答读取 → 解析 → 越限报警 → 发布样本；
 ///  - 维护 <see cref="Runtime"/>（在线/离线/连续错误计数）；
 ///  - 连续错误达阈值后进入退避重连（周期尝试 Close→Reopen）；

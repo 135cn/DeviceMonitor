@@ -8,7 +8,7 @@ namespace DeviceMonitor.Core.Tests;
 /// <summary>
 /// SerialChannel 的 D8 测试：状态、幂等、异常映射。
 ///
-/// 说明：串口相关用例需要本机存在虚拟串口（推荐用 VSPD 建一对 COM10 ↔ COM11），
+/// 说明：串口相关用例需要本机存在虚拟串口（推荐用 VSPD 建一对 COM9 ↔ COM10），
 /// 没有对应端口时用 Assert.Skip 跳过，不会把测试套件拖红。
 /// 打开不存在的端口 / 未打开就 Close/Dispose 这类用例不依赖硬件，任何机器都能跑。
 /// </summary>

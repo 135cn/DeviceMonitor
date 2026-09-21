@@ -1,10 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
-    <PackageReference Include="ScottPlot" Version="5.1.59" />
-  </ItemGroup>
-
-  <ItemGroup>
+    <!-- 模拟器是纯控制台程序，只依赖 Core；ScottPlot 属于界面层，只加在 DeviceMonitor.App 上 -->
     <ProjectReference Include="..\DeviceMonitor.Core\DeviceMonitor.Core.csproj" />
   </ItemGroup>
 

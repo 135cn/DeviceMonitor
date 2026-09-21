@@ -14,7 +14,7 @@ public class ModelsJsonTests
     private static DeviceConfig CreateSample() => new()
     {
         Name = "温控器",
-        PortName = "COM3",
+        PortName = "COM9",
         BaudRate = 9600,
         DataBits = 8,
         SlaveId = 1,

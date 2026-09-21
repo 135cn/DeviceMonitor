@@ -8,7 +8,7 @@
 
   <ItemGroup>
     <!-- D8 起 SerialChannel 依赖 System.IO.Ports（10.0.10 已在本地 NuGet 缓存） -->
-    <!-- 注意：Core 不引用 UI / 绘图库。ScottPlot 属于界面层，D18 时加到 DeviceMonitor.App 上。 -->
+    <!-- 注意：Core 不引用 UI / 绘图库。ScottPlot 只加在 DeviceMonitor.App 上（见其 csproj）。 -->
     <PackageReference Include="System.IO.Ports" Version="10.0.10" />
   </ItemGroup>
 
