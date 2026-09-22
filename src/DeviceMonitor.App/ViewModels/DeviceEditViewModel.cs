@@ -90,7 +90,7 @@ namespace DeviceMonitor.App.ViewModels
 
             Points = new ObservableCollection<PointConfig>(Draft.Points);
             // 点位集合变了要同步回 Draft（保存时用的是 Draft）
-            Points.CollectionChanged +=(_,_)=> SyncPoints();
+            Points.CollectionChanged +=(_,_)=>{ SyncPoints(); Validate(); };
             Validate();
         }
 
@@ -136,6 +136,39 @@ namespace DeviceMonitor.App.ViewModels
 
         public bool HasErrors => !string.IsNullOrEmpty(ErrorText);
 
+        // ---------------- 输入即时重校验 ----------------
+        //
+        // ★ 历史 bug（"确定按钮点不了"）：Validate() 原本只在构造函数和 OnConfirmClick 里调，
+        //   于是按钮可用性被**冻结在构造那一刻**的状态。新建设备时端口故意留空 →
+        //   构造时校验报错 → ErrorText 非空 → 转换器给出 IsEnabled=false；
+        //   而用户随后填好端口**不会触发任何重校验**，按钮永远灰着，窗口等于存不了。
+        //   修法：任何影响校验结果的字段变化都重新跑一遍 Validate()。
+        //
+        //   这些 OnXxxChanged 是 CommunityToolkit.Mvvm 由 [ObservableProperty] 生成的
+        //   分部钩子，属性赋值后自动调用。少写一个 → 那个字段改了按钮不亮/不灭。
+
+        partial void OnNameChanged(string value) => Validate();
+
+        partial void OnPortNameChanged(string value) => Validate();
+
+        partial void OnBaudRateChanged(int value) => Validate();
+
+        partial void OnDataBitsChanged(int value) => Validate();
+
+        partial void OnParityChanged(Parity value) => Validate();
+
+        partial void OnStopBitsChanged(StopBits value) => Validate();
+
+        partial void OnSlaveIdChanged(byte value) => Validate();
+
+        partial void OnReadTimeoutMsChanged(int value) => Validate();
+
+        partial void OnPollIntervalMsChanged(int value) => Validate();
+
+        partial void OnOfflineErrorThresholdChanged(int value) => Validate();
+
+        partial void OnReconnectIntervalMsChanged(int value) => Validate();
+
         /// <summary>本机可用串口（下拉可选 + 允许手填）。</summary>
         public IReadOnlyList<string> AvailablePorts
         {
@@ -152,7 +185,11 @@ namespace DeviceMonitor.App.ViewModels
             }
         }
 
-        /// <summary>把界面字段写回工作副本（保存前调用）。</summary>
+        /// <summary>
+        /// 把界面字段写回工作副本（**只在用户点"确定"时**调用，之后 <see cref="Draft"/> 才是最终结果）。
+        /// ⚠️ 改动这里的字段时，务必同步改 <see cref="BuildPreview"/>（校验用的快照），
+        ///    否则会出现"校验看的是 A、保存的是 B"这种极难查的错位。
+        /// </summary>
         public void ApplyFieldsToDraft()
         {
             Draft.Name = Name.Trim();
@@ -186,21 +223,47 @@ namespace DeviceMonitor.App.ViewModels
             ReconnectIntervalMs = Draft.ReconnectIntervalMs;
         }
 
-        /// <summary>校验当前编辑内容（界面字段改动后由 code-behind 或命令触发）。</summary>
+        /// <summary>校验当前编辑内容（界面字段改动后由属性钩子自动触发）。</summary>
+        /// <remarks>
+        /// 注意：这里**只读**地校验，不写回 <see cref="Draft"/>。
+        /// 早先的实现是"先 ApplyFieldsToDraft() 再校验"，在"每次按键都校验"之后就成了问题：
+        /// 会把正在输入的半成品（如末尾空格、未输完的数字）经 Trim 写进工作副本。
+        /// 现在只在用户点"确定"时才真正提交（见 <see cref="ApplyFieldsToDraft"/>）。
+        /// </remarks>
         public bool Validate()
         {
-            ApplyFieldsToDraft();
-
-            ValidationResult result = DeviceConfigValidator.ValidateDevice(Draft);
+            ValidationResult result = DeviceConfigValidator.ValidateDevice(BuildPreview());
             ErrorText = result.ToDisplayText();
 
             return result.IsValid;
         }
-        /// <summary>"确定"按钮的可用性：有错就不让点，逼着用户改对。</summary>
-        [RelayCommand(CanExecute = nameof(CanConfirm))]
-        private void Confirm() { /* 由窗口 code-behind 关闭对话框；见 DeviceEditWindow.xaml.cs */  }
 
-        private bool CanConfirm => !HasErrors;
+        /// <summary>
+        /// 用"界面字段 + 当前点位集合"构造一份用于校验的配置快照（不污染 <see cref="Draft"/>）。
+        /// 与 <see cref="ApplyFieldsToDraft"/> 的字段一一对应，改字段时两边都要动。
+        /// </summary>
+        private DeviceConfig BuildPreview() => new()
+        {
+            Id = Draft.Id,                       // 校验用不到 Id，但保留以免将来加规则时遗漏
+            Name = Name.Trim(),
+            PortName = PortName.Trim(),
+            BaudRate = BaudRate,
+            DataBits = DataBits,
+            Parity = Parity,
+            StopBits = StopBits,
+            SlaveId = SlaveId,
+            ReadTimeoutMs = ReadTimeoutMs,
+            PollIntervalMs = PollIntervalMs,
+            OfflineErrorThreshold = OfflineErrorThreshold,
+            ReconnectIntervalMs = ReconnectIntervalMs,
+            Points = Points.ToList(),
+        };
+        // ⚠️ 这里**刻意不提供 ConfirmCommand**。
+        //   "确定"按钮走的是 XAML 的 Click="OnConfirmClick" + IsEnabled 绑定
+        //   （见 DeviceEditWindow.xaml），因为关窗必须由 View 负责（DialogResult）。
+        //   早先存在一个 [RelayCommand(CanExecute=...)] 的 Confirm 命令，但它从未被
+        //   任何 XAML 绑定 —— 等于第二套互不相干的门禁，只会让人误判按钮状态由谁决定。
+        //   唯一事实来源：ErrorText → NotEmptyToBoolConverter → IsEnabled。
 
         [RelayCommand]
         private void AddPoint()

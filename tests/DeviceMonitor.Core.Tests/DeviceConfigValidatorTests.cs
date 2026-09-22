@@ -422,6 +422,100 @@ public class DeviceConfigValidatorTests
         Assert.Single(text.Split(Environment.NewLine));
     }
 
+    // ---------------- "确定"按钮可用性契约（UI 门禁的回归测试） ----------------
+    //
+    // 背景 bug：DeviceEditWindow 的"确定"按钮 IsEnabled 绑的是
+    //   ErrorText → NotEmptyToBoolConverter（空串=true=可点），
+    // 而 ViewModel 原先只在**构造函数**里跑一次 Validate()。
+    // 结果：新建设备时端口故意留空 → 构造时 ErrorText 非空 → 按钮灰死；
+    // 用户随后填好端口**没有任何重校验**，窗口永远存不下去。
+    //
+    // 这两条测试锁住"按钮该亮/该灭"的判定基准，防止以后有人把
+    // Validate() 的触发点改回"只在构造时"。
+
+    /// <summary>
+    /// 模拟"新建设备"的默认配置：端口为空，其余字段合法。
+    /// DeviceEditViewModel 就是这么造的（见其构造函数），是按钮灰死的现场。
+    /// </summary>
+    private static DeviceConfig NewDeviceDraft(string port = "") => new()
+    {
+        Id = Guid.NewGuid().ToString("N"),
+        Name = "新设备",
+        PortName = port,                       // 故意留空，逼用户自己选端口
+        BaudRate = 9600,
+        DataBits = 8,
+        Parity = System.IO.Ports.Parity.None,
+        StopBits = System.IO.Ports.StopBits.One,
+        SlaveId = 1,
+        ReadTimeoutMs = 800,
+        PollIntervalMs = 1000,
+        OfflineErrorThreshold = 3,
+        ReconnectIntervalMs = 2000,
+        Points = [Point("温度")],
+    };
+
+    [Fact]
+    public void 新建设备_端口未填时_确定按钮应为灰()
+    {
+        ValidationResult result = DeviceConfigValidator.ValidateDevice(NewDeviceDraft());
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.Field == nameof(DeviceConfig.PortName));
+    }
+
+    [Fact]
+    public void 新建设备_填好端口后_确定按钮应可点()
+    {
+        // ★ 这条就是修复的核心断言：同一个设备，只把端口补上就应该通过。
+        //   修复前 UI 不会重新跑校验，所以按钮实际仍是灰的（可惜 Core 测不到 UI 状态，
+        //   这里锁住"数据层面确实通过了"，UI 侧靠属性钩子 + 单元格编辑钩子触发重校验）。
+        ValidationResult result = DeviceConfigValidator.ValidateDevice(NewDeviceDraft("COM9"));
+
+        Assert.True(result.IsValid, $"填好端口后应通过，实际报错：{result.ToDisplayText()}");
+        Assert.Equal(string.Empty, result.ToDisplayText());
+    }
+
+    [Fact]
+    public void 只改端口_从空到COM9_校验结果应当发生翻转()
+    {
+        // 断言"会发生翻转"这件事本身，而不只是两个孤立状态 ——
+        // 因为 UI 的 bug 恰恰是"状态不跟着输入变"。
+        bool beforeEnabled = string.IsNullOrWhiteSpace(
+            DeviceConfigValidator.ValidateDevice(NewDeviceDraft("")).ToDisplayText());
+
+        bool afterEnabled = string.IsNullOrWhiteSpace(
+            DeviceConfigValidator.ValidateDevice(NewDeviceDraft("COM9")).ToDisplayText());
+
+        Assert.False(beforeEnabled);
+        Assert.True(afterEnabled);
+    }
+
+    [Fact]
+    public void 点位数量被改成0_确定按钮应重新变灰()
+    {
+        // DataGrid 直接改 PointConfig（POCO，无 INotifyPropertyChanged），
+        // 所以 View 侧专门挂了 CellEditEnding 来重校验 —— 这里锁住判定基准。
+        var config = NewDeviceDraft("COM9");
+        config.Points[0].Quantity = 0;
+
+        ValidationResult result = DeviceConfigValidator.ValidateDevice(config);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.Field == nameof(PointConfig.Quantity));
+    }
+
+    [Fact]
+    public void 点位缩放被改成0_确定按钮应重新变灰()
+    {
+        var config = NewDeviceDraft("COM9");
+        config.Points[0].Scale = 0;
+
+        ValidationResult result = DeviceConfigValidator.ValidateDevice(config);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.Field == nameof(PointConfig.Scale));
+    }
+
     /// <summary>只为"验证构造必然失败"这一条测试准备的哑通道。</summary>
     private sealed class NullChannel : Core.Channels.IDeviceChannel
     {
