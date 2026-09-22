@@ -54,7 +54,7 @@ DeviceMonitor.sln
 | D13 生产者-消费者 + 断线重连观察 | ✅（状态事件 + 退避重连已实现） |
 | D14 NLog 日志接入 | ✅ 已补做（NLog 4.7.12，见第七节"D14 补做说明"） |
 | D15 DI + MVVM + 主窗口布局 + 实时表格绑定 | ✅（**UI 的桌面验收尚未人工确认**，见第八节） |
-| D16 设备编辑窗口 + devices.json | 🟡 代码已落库并 review 通过（构建 0 警告 0 错误 / 195 测试全绿 / 端到端链路实测），**待桌面验收 + 待提交** |
+| D16 设备编辑窗口 + devices.json | 🟡 代码已全部落库（7 个提交），review 通过：清 obj 后**全量干净重建 0 警告 0 错误** / 195 测试全绿（3 skip）/ 端到端链路实测。**仅剩桌面验收**（见第八节） |
 | D17~D28 曲线 / SQLite / 历史回放 / 报警 / Excel / 录屏 / README / 简历 | ⬜ |
 
 ---
@@ -72,6 +72,11 @@ Set-Location $root
 
 # 构建（必须 -m:1 单线程，原因见第五节坑 #1）
 dotnet build DeviceMonitor.sln -c Debug --no-restore -p:NuGetAudit=false -m:1
+
+# ★ 想确认"真的没有警告"必须清 obj 后全量重建（增量构建下分析器不跑，见坑 #29）
+Remove-Item -Recurse -Force src\*\obj, src\*\bin, tests\*\obj, tests\*\bin, tools\*\obj, tools\*\bin
+dotnet restore DeviceMonitor.sln -p:NuGetAudit=false
+dotnet build DeviceMonitor.sln -c Debug --no-restore -p:NuGetAudit=false -m:1 -v:n
 
 # 跑测试（**不要用 dotnet test**，见坑 #3）
 dotnet run --project tests\DeviceMonitor.Core.Tests -c Debug --no-restore -p:NuGetAudit=false
@@ -163,6 +168,9 @@ $env:SIMULATOR_E2E_PORT = 'COM9'               # 可选，默认 COM9
 | 26 | 便携式 app 的启动路径不能 new SerialChannel | `new SerialChannel(config)` **构造函数就打开端口** → devices.json 里留一条坏端口，软件启动即崩，用户只能手工改 JSON 自救。改用 `ProbeDeviceChannel`（只记端口名、`Open()` 必失败、实现 `IDegradableDeviceChannel`）装载，点"启动采集"时再 `SetChannelFactory(SerialChannel)` + `RecreateDeviceHandles()` 换回真串口 |
 | 27 | `x => x + y` 拼成 `x + y`（丢了 lambda 头） | `BoundedChannelOptions(20_000 + options)` 会编译成"把委托对象和 options 相加"，`+=` 重载在委托上合法 → **能编译通过**但语义完全错（不会报错，只是队列容量变成 2 万）。改代码后务必扫一眼同类表达式 |
 | 28 | 反射读私有字段的测试，重构时会静默失效 | `GetRegisteredPumpCount` 用 `GetField("_samplePumps")`；若将来把字段改名/改类型，`Assert.NotNull(field)` 会让它**失败而不是静默通过**——这是刻意的，别把断言删掉换成"找不到就跳过" |
+| 29 | **清空 obj 后全量重建才冒出来的警告** | 有个反直觉现象：日常增量构建 **0 警告**，但 `rm -rf */obj */bin` 后全量重建会报 23 条 `xUnit1051`。原因不是增量构建把警告吞了，而是**分析器只在源文件真正被重新编译时才运行**——增量构建下测试项目无需重编，分析器自然不跑。所以"日常构建干净"**不能**当作"没有警告"的证据。**结论**：断言代码无警告，必须清 obj 后全量重建，否则你会在 CI（永远是干净构建）上被打脸 |
+| 30 | xUnit1051 的正确修法 | 测试里调 `StartAsync` / `StartAllAsync` 这类"接收 CancellationToken"的 API 时不传令牌，分析器就会报 `xUnit1051`（建议用 `TestContext.Current.CancellationToken`，让测试可被取消、超时更可控）。修法是**显式传**：`await manager.StartAllAsync(TestContext.Current.CancellationToken)`。`ThrowsAsync` 里的 lambda 也要传。注意别图省事用 `#pragma` 或全局关掉规则——传令牌是真能改善测试卡死时的表现 |
+| 31 | 批量改文件时用脚本重写会破坏 BOM / 行尾 | 本次为一次修 23 处告警，用 Python 批量 replace 重写了 3 个测试文件，结果**给原本无 BOM 的文件加了 BOM**、又**给原本有 BOM 的丢了 BOM**，产生"整文件重写"级别的脏 diff。本仓库 BOM 并不统一（`CollectorServiceTests`/`DeviceManagerTests` 等多半有 BOM，但也有 `Crc16Tests` 这类无 BOM 的），所以**没有 `.editorconfig`/`.gitattributes` 兜底**。用脚本改文件时：① 显式指定编码与 `newline='\r\n'`；② 改完 `git diff --numstat` 核对"增删行数是否等于真实改动数"，出现整文件行数就是编码被弄脏了 |
 
 ---
 
