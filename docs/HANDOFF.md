@@ -171,6 +171,10 @@ $env:SIMULATOR_E2E_PORT = 'COM9'               # 可选，默认 COM9
 | 29 | **清空 obj 后全量重建才冒出来的警告** | 有个反直觉现象：日常增量构建 **0 警告**，但 `rm -rf */obj */bin` 后全量重建会报 23 条 `xUnit1051`。原因不是增量构建把警告吞了，而是**分析器只在源文件真正被重新编译时才运行**——增量构建下测试项目无需重编，分析器自然不跑。所以"日常构建干净"**不能**当作"没有警告"的证据。**结论**：断言代码无警告，必须清 obj 后全量重建，否则你会在 CI（永远是干净构建）上被打脸 |
 | 30 | xUnit1051 的正确修法 | 测试里调 `StartAsync` / `StartAllAsync` 这类"接收 CancellationToken"的 API 时不传令牌，分析器就会报 `xUnit1051`（建议用 `TestContext.Current.CancellationToken`，让测试可被取消、超时更可控）。修法是**显式传**：`await manager.StartAllAsync(TestContext.Current.CancellationToken)`。`ThrowsAsync` 里的 lambda 也要传。注意别图省事用 `#pragma` 或全局关掉规则——传令牌是真能改善测试卡死时的表现 |
 | 31 | 批量改文件时用脚本重写会破坏 BOM / 行尾 | 本次为一次修 23 处告警，用 Python 批量 replace 重写了 3 个测试文件，结果**给原本无 BOM 的文件加了 BOM**、又**给原本有 BOM 的丢了 BOM**，产生"整文件重写"级别的脏 diff。本仓库 BOM 并不统一（`CollectorServiceTests`/`DeviceManagerTests` 等多半有 BOM，但也有 `Crc16Tests` 这类无 BOM 的），所以**没有 `.editorconfig`/`.gitattributes` 兜底**。用脚本改文件时：① 显式指定编码与 `newline='\r\n'`；② 改完 `git diff --numstat` 核对"增删行数是否等于真实改动数"，出现整文件行数就是编码被弄脏了 |
+| 32 | **"一次校验定终身"式的按钮门禁** | `DeviceEditWindow` 的"确定"按钮 `IsEnabled` 绑 `ErrorText` → 转换器，而 `Validate()` 原本**只在构造函数里跑一次**。新建设备时端口故意留空 → 构造即报错 → 按钮灰死；用户随后填好端口**不会触发任何重校验** → 永远点不下去，窗口等于废了。**通用教训**：把"某状态决定某控件可用性"写成"算一次就存起来"是危险的，只要那个状态有输入源，就必须在**每次输入变化时重算**。WPF 里的做法：给全部 `[ObservableProperty]` 加生成的 `OnXxxChanged` 分部钩子统一重算 |
+| 33 | DataGrid 直接编辑 POCO，ViewModel 收不到信号 | `PointConfig` 是 Core 的纯 POCO，**没实现 `INotifyPropertyChanged`**（Core 不该依赖 UI 通知机制，这个边界要守住）。于是 DataGrid 里把"数量/缩放"改成 0 这类非法值，VM 完全不知情 → 门禁不更新。**修法**：在 View 层挂 `DataGrid.CellEditEnding` 重算。注意**必须用 `Dispatcher.BeginInvoke` 延后**——`CellEditEnding` 触发时单元格新值还没写回绑定源，当场读到的仍是旧值 |
+| 34 | 用"提交副作用"函数做校验 | `Validate()` 里调 `ApplyFieldsToDraft()`（把界面字段写回 `Draft`）。在"只在构造时校验一次"的年代看不出问题，一旦改成"每次按键都校验"，就会把**正在输入的半成品**（末尾空格、未输完的数字）经 `Trim()` 写进工作副本。**修法**：校验用**只读快照**（本仓库是 `BuildPreview()`），提交留给用户点"确定"时。校验与提交必须分离 |
+| 35 | 死掉的 `CanExecute` 命令会误导后来人 | VM 里曾有个 `[RelayCommand(CanExecute = nameof(CanConfirm))]` 的 `Confirm` 命令，**从未被任何 XAML 绑定**（按钮走的是 code-behind 的 `Click`，因为关窗必须由 View 负责 `DialogResult`）。等于存在第二套互不相干的可用性判断，读代码时极易误判"按钮状态由谁决定"。**结论**：唯一事实来源只能有一个；发现这类悬空命令直接删掉并写明原因，不要留着"以后可能用" |
 
 ---
 
@@ -261,13 +265,22 @@ $env:SIMULATOR_E2E_PORT = 'COM9'               # 可选，默认 COM9
 - **★ 关键修复**：**"所有点位都被禁用"现在会在保存前被拦住**。
   在此之前这条配置会一路漏到 `CollectorService` 构造函数抛 `ArgumentException`（运行时崩溃、用户看不懂）。
   测试 `所有点位都被禁用_该配置确实会让CollectorService构造失败` 把"校验失败 == 构造必然抛异常"钉死了，哪天运行时行为变了这条会红。
-- 单测文件：`tests/DeviceMonitor.Core.Tests/DeviceConfigValidatorTests.cs`（41 个用例）。
+- 单测文件：`tests/DeviceMonitor.Core.Tests/DeviceConfigValidatorTests.cs`（46 个用例，含 5 条"确定按钮可用性契约"）。
 
 ---
 
 ## 八、需要人工完成的部分（沙箱做不了）
 
 1. **WPF 界面验收**：启动 `src/DeviceMonitor.App` → 点"启动采集"（模拟器先跑在 COM10）→ 圆点变绿、表格数值跳动、状态栏显示在线 → 停止 → **关窗口确认不再抛 `IAsyncDisposable` 异常**、且端口释放（再次启动不报占用）。这一步**还没人工确认过**。
+2. **★ 设备编辑窗口专项验收**（本窗口刚出过"确定按钮永远点不了"的事故，见坑 #32~#35，且**这类 bug 编译器不报、单测只能覆盖到数据层判定**，只能靠人工点）：
+   - 新建：菜单里新建设备 → 名称/端口初始为空 → **填入 `COM9` 后"确定"应立即由灰变亮**（这是本次修复的核心行为）
+   - 把端口清空 → "确定"应变灰；悬停灰按钮应能看到红色错误原因（ToolTip）
+   - 三个下拉框（**数据位 / 停止位 / 串口**）应有内容、能选中 —— 历史上名字拼错过（`DataBitsOptins`）导致静默空白
+   - 点位表格：把某行"数量"改成 `0` → "确定"应变灰；改回 `1` → 应变亮
+   - 点位表格：把某行"缩放"改成 `0` → 应变灰
+   - 编辑已有设备：标题应是"编辑设备 —— <名字>"，改名时标题跟着变
+   - 点"取消" → 原配置**不应被改动**（编辑走的是深拷贝）
+   - 采集中 → 增删改按钮应为灰
 2. **录屏/截图**（D24~D25）。
 3. **联网还原 ScottPlot.WPF**（D18）。
 4. **真实硬件可选加分**：USB 转 485 + 温控表/PLC 替换模拟器。
