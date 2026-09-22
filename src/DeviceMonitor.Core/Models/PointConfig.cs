@@ -6,7 +6,13 @@ namespace DeviceMonitor.Core.Models;
 /// </summary>
 public sealed class PointConfig
 {
-    public string Id { get; set; } = Guid.NewGuid().ToString("N");
+    /// <summary>
+    /// 点位唯一 Id。同 <see cref="DeviceConfig.Id"/>：默认必须是空串而不是 <c>Guid.NewGuid()</c>，
+    /// 否则 System.Text.Json 反序列化遇到缺该字段时会**每次加载都生成新的随机 Id**，
+    /// 导致点位身份在重启之间漂移（UI 索引键 = (设备Id, 点位Id)）。
+    /// 补齐由 <c>JsonDeviceConfigStore.Load</c> 负责，并在补完后写回文件。
+    /// </summary>
+    public string Id { get; set; } = string.Empty;
 
     /// <summary>点名，如 "温度"。</summary>
     public string Name { get; set; } = "新点位";

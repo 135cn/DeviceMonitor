@@ -8,7 +8,18 @@ namespace DeviceMonitor.Core.Models;
 /// </summary>
 public sealed class DeviceConfig
 {
-    public string Id { get; set; } = Guid.NewGuid().ToString("N");
+    /// <summary>
+    /// 设备唯一 Id。
+    ///
+    /// ⚠️ 默认值是 <c>string.Empty</c>，**故意不用 <c>Guid.NewGuid()</c>**：
+    /// <see cref="System.Text.Json"/> 的反序列化在 JSON 缺少该属性时会保留属性初始化器的值，
+    /// 于是"每次加载都随机出一个新 Id" —— 点位 Id 是 UI 索引 (DeviceId, PointId) 与
+    /// 后续历史/存储的键，一直漂移意味着同一台设备跨次启动被当成不同设备。
+    /// 缺 Id 的补齐职责统一交给 <c>JsonDeviceConfigStore.Load</c>（它补完会写回文件）。
+    /// 新建对象时请用 <c>new DeviceConfig()</c> 之外的显式赋值，
+    /// 或依赖 <c>JsonDeviceConfigStore</c> / <c>DeviceEditViewModel</c> 走的补齐路径。
+    /// </summary>
+    public string Id { get; set; } = string.Empty;
 
     /// <summary>设备名，如 "温控器"。</summary>
     public string Name { get; set; } = "新设备";
