@@ -1,4 +1,6 @@
-﻿using DeviceMonitor.Core.Protocol;
+﻿using DeviceMonitor.Core.Diagnostics;
+using DeviceMonitor.Core.Protocol;
+using NLog;
 using System;
 using System.Collections.Generic;
 using System.IO.Ports;
@@ -16,10 +18,17 @@ namespace DeviceMonitor.Simulator
     /// </summary>
     public sealed class SerialSlaveServer : IDisposable
     {
+        private static readonly Logger Log = AppLog.For<SerialSlaveServer>();
+
         private readonly SerialPort _port;
         private readonly ModbusRtuSlave _slave;
         private readonly bool _verbose;
         private readonly Action<string> _log;
+
+        /// <summary>累计统计：收到/应答/丢弃的帧数，README 与排查时都用得上。</summary>
+        private long _receivedFrames;
+        private long _answeredFrames;
+        private long _ignoredFrames;
 
         /// <param name="verbose">true 时打印收发的原始 HEX（排查波特率不一致的利器）。</param>
         /// <param name="log">日志输出，默认控制台；测试时可注入收集器。</param>
@@ -46,7 +55,12 @@ namespace DeviceMonitor.Simulator
 
         public string PortName => _port.PortName;
 
-        public void Open() => _port.Open();
+        public void Open()
+        {
+            _port.Open();
+            Log.Info("从站串口 {Port} 已打开（{Baud} 8-N-1）。",
+                AppLog.Wrap(_port.PortName), _port.BaudRate);
+        }
 
         /// <summary>
         /// 阻塞式服务循环，直到 <paramref name="token"/> 被取消。
@@ -86,12 +100,18 @@ namespace DeviceMonitor.Simulator
 
                     if(response is null)
                     {
+                        _ignoredFrames++;
+                        Log.Debug("忽略一帧（CRC 错 / 非本从站地址）：{Frame}", Convert.ToHexString(frame));
+
                         if (_verbose)
                             _log($"[--] 忽略：{Convert.ToHexString(frame)}（CRC 错 / 非本从站地址）");
 
                         continue;
                     }
+
+                    _receivedFrames++;
                     _port.Write(response, 0, response.Length);
+                    _answeredFrames++;
 
                     if (_verbose)
                         _log($"[TX] {Convert.ToHexString(response)}");
@@ -106,12 +126,16 @@ namespace DeviceMonitor.Simulator
                 if(_port.IsOpen)
                     _port.Close();
             }
-            catch (IOException)
+            catch (IOException ex)
             {
-                // 端口已被拔出：关闭失败可以忽略
+                // 端口已被拔出：关闭失败可以忽略，但要留痕（否则"端口占用"无从追查）
+                Log.Warn(ex, "从站串口 {Port} 关闭失败（可能已被拔出）。", AppLog.Wrap(_port.PortName));
             }
 
             _port.Dispose();
+
+            Log.Info("从站串口 {Port} 已释放。累计应答 {Answered} 帧，忽略 {Ignored} 帧。",
+                AppLog.Wrap(_port.PortName), _answeredFrames, _ignoredFrames);
         }
     }
 }

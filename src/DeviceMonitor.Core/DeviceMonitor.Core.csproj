@@ -8,8 +8,13 @@
 
   <ItemGroup>
     <!-- D8 起 SerialChannel 依赖 System.IO.Ports（10.0.10 已在本地 NuGet 缓存） -->
-    <!-- 注意：Core 不引用 UI / 绘图库。ScottPlot 只加在 DeviceMonitor.App 上（见其 csproj）。 -->
     <PackageReference Include="System.IO.Ports" Version="10.0.10" />
+    <!-- D14 日志：NLog 4.7.12（本地 NuGet 缓存有，lib/netstandard2.0 供 net8.0 引用） -->
+    <PackageReference Include="NLog" Version="4.7.12" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 注意：Core 不引用 UI / 绘图库。ScottPlot 只加在 DeviceMonitor.App 上（见其 csproj）。 -->
   </ItemGroup>
 
 </Project>

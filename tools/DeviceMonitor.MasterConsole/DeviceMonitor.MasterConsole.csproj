@@ -11,4 +11,11 @@
     <ProjectReference Include="..\..\src\DeviceMonitor.Core\DeviceMonitor.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- NLog 配置文件要复制到输出目录（NLog 默认在 exe 同目录找 NLog.config） -->
+    <None Update="NLog.config">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>
