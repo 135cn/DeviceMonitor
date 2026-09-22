@@ -30,3 +30,17 @@ public interface IDeviceChannel : IDisposable
     /// <returns>完整帧；超时未收齐返回 null（调用方记一次失败）。</returns>
     byte[]? ReadFrame(int expectedLength, int timeoutMs);
 }
+
+/// <summary>
+/// 带"未打开时的降级行为"标记的通道：<see cref="Open"/> 失败后**不抛异常**，
+/// 而是保持"未打开"状态，让调用方照常走重连流程。
+///
+/// 为什么需要这个区分：<see cref="Services.CollectorService"/> 遇到打开失败时会记一次错误
+/// 并按阈值判定离线（这是正常路径）。但如果不加区分，任何实现都可能"静默失败"，
+/// 把真正的 bug（比如过滤器写错导致零帧）伪装成"设备离线"。
+/// 因此只有显式声明了本接口的通道（当前仅有 <see cref="ProbeDeviceChannel"/>，用于启动自检）
+/// 才允许 Open 失败后继续运行；真实 <see cref="SerialChannel"/> 打开失败仍然抛异常。
+/// </summary>
+public interface IDegradableDeviceChannel
+{
+}
