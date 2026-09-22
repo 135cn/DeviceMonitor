@@ -27,8 +27,9 @@
                 <Button Content="启动采集" Command="{Binding StartAllCommand}"/>
                 <Button Content="停止采集" Command="{Binding StopAllCommand}"/>
                 <Separator/>
-                <Button Content="添加设备..." IsEnabled="False" ToolTip="TODO D16"/>
-                <Button Content="编辑设备..." IsEnabled="False"/>
+                <Button Content="添加设备..." Command="{Binding AddDeviceCommand}"/>
+                <Button Content="编辑设备..." Command="{Binding EditDeviceCommand}"/>
+                <Button Content="删除设备" Command="{Binding RemoveDeviceCommand}"/>
                 <Separator/>
                 <Button Content="清空数据" Command="{Binding ClearPointsCommand}"/>
                 <Button Content="历史查询..." IsEnabled="False" ToolTip="TODO D20"/>

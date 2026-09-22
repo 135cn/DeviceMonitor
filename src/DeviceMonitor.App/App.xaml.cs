@@ -1,4 +1,5 @@
 using DeviceMonitor.App.ViewModels;
+using DeviceMonitor.Core.Channels;
 using DeviceMonitor.Core.Models;
 using DeviceMonitor.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
@@ -19,7 +20,23 @@ public partial class App : Application
         base.OnStartup(e);
         var services = new ServiceCollection();
 
-        services.AddSingleton(_ => new DeviceManager(CreateDemoDevices()));
+        services.AddSingleton<IDeviceConfigStore>(_=> new JsonDeviceConfigStore());
+
+        services.AddSingleton(provider =>
+        {
+            IDeviceConfigStore store = provider.GetRequiredService<IDeviceConfigStore>();
+
+            // ★ 启动阶段用 ProbeDeviceChannel 装载：它只记下端口名，不真正打开串口。
+            //
+            //   为什么不直接用 SerialChannel：`new SerialChannel(config)` 的构造函数就会打开端口，
+            //   只要 devices.json 里留着一条"已拔掉/被占用/本机不存在"的端口，
+            //   整个软件启动即抛异常、界面根本出不来 —— 而用户此时唯一的办法是手工改 JSON。
+            //   探针通道把这个尴尬变成了"设备显示离线、可在界面里改掉或删掉"。
+            //   真正点"启动采集"时，MainViewModel 会把工厂换回 SerialChannel 并重建句柄。
+            return new DeviceManager(
+                store.Load(),
+                config => new ProbeDeviceChannel(config.PortName));
+        });
 
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<MainWindow>();
@@ -40,6 +57,11 @@ public partial class App : Application
         {
             try
             {
+                IDeviceConfigStore store = _service.GetRequiredService<IDeviceConfigStore>();
+                DeviceManager manager = _service.GetRequiredService<DeviceManager>();
+                store.Save(manager.Devices.Select(d => d.Config));
+
+
                 _service.DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(5));
             }
             catch (AggregateException)
@@ -51,43 +73,5 @@ public partial class App : Application
         base.OnExit(e);
     }
 
-    /// <summary>
-    /// D15 的临时演示配置（D16 会换成从 devices.json 加载）。
-    /// 点位 03/04 交替，正好和模拟器的数据对得上：
-    ///   dotnet run --project src/DeviceMonitor.Simulator -- --port COM10 --slave 1 --points 6
-    /// </summary>
-    private static List<DeviceConfig> CreateDemoDevices()
-    {
-        var points = new List<PointConfig>();
-        for (int i = 0; i < 6; i++)
-        {
-            points.Add(new PointConfig
-            {
-                Name = $"点位{i}",
-                FunctionCode = i % 2 == 0 ? (byte)3 : (byte)4,
-                StartAddress = (ushort)i,
-                Quantity = 1,
-                Unit = "℃",
-                Scale = 0.1,
-                Decimals = 1,
-            });
-        }
-
-        return new List<DeviceConfig>
-        {
-            new()
-            {
-                Name = "模拟器设备",
-                PortName = "COM9",       // 全项目约定：COM9 = 上位机侧，COM10 = 从站/模拟器侧
-                BaudRate = 9600,
-                SlaveId = 1,
-                ReadTimeoutMs = 500,
-                PollIntervalMs = 1000,
-                OfflineErrorThreshold = 3,
-                ReconnectIntervalMs = 2000,
-                Points = points,
-            },
-        };
-    }
 }
 

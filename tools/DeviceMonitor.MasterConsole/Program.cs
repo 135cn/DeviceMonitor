@@ -71,6 +71,7 @@ for (int i = 0; i < pointCount; i++)
 
 var config = new DeviceConfig
 {
+    Id = Guid.NewGuid().ToString("N"),   // 不落盘的一次性配置，这里显式生成（模型默认已是空串）
     Name = $"控制台主站-{port}",
     PortName = port,
     BaudRate = baudRate,
