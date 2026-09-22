@@ -1,4 +1,4 @@
-using DeviceMonitor.Core.Channels;
+﻿using DeviceMonitor.Core.Channels;
 using DeviceMonitor.Core.Models;
 using DeviceMonitor.Core.Protocol;
 using DeviceMonitor.Core.Services;
@@ -83,7 +83,7 @@ public class ProbeDeviceChannelTests
             config => new ProbeDeviceChannel(config.PortName));
 
         // 打开端口必然失败 → 走"失败 → 达阈值 → 离线"的正常路径，而不是让轮询任务炸掉
-        await manager.StartAllAsync();
+        await manager.StartAllAsync(TestContext.Current.CancellationToken);
 
         DeviceHandle handle = manager.Devices[0];
         Assert.True(handle.Collector.IsRunning);   // 循环仍在跑（等用户改配置/拔插设备）
@@ -101,7 +101,7 @@ public class ProbeDeviceChannelTests
             [Config("设备A", "COM_不存在", Point("温度"))],
             config => new ProbeDeviceChannel(config.PortName));
 
-        await manager.StartAllAsync();
+        await manager.StartAllAsync(TestContext.Current.CancellationToken);
 
         // 反证：连续错误计数是一路累加的（普通失败路径），而不是每轮被清零
         DeviceHandle handle = manager.Devices[0];
@@ -139,7 +139,7 @@ public class ProbeDeviceChannelTests
         manager.SetChannelFactory(factory);
         manager.RecreateDeviceHandles();
 
-        await manager.StartAllAsync();
+        await manager.StartAllAsync(TestContext.Current.CancellationToken);
 
         List<DataSample> samples = await ReadSamplesAsync(manager, count: 1);
         Assert.Contains(samples, s => s.Raw == 123);
@@ -165,7 +165,7 @@ public class ProbeDeviceChannelTests
         await using var manager = new DeviceManager(
             [Config("设备A", "COM_a", Point("温度"))], FactoryReturning(1));
 
-        await manager.StartAllAsync();
+        await manager.StartAllAsync(TestContext.Current.CancellationToken);
 
         Assert.Throws<InvalidOperationException>(() => manager.SetChannelFactory(FactoryReturning(2)));
         Assert.Throws<InvalidOperationException>(() => manager.RecreateDeviceHandles());

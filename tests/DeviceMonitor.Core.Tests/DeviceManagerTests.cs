@@ -137,7 +137,7 @@ public class DeviceManagerTests
             new[] { Config("设备A", Point("温度A")), Config("设备B", Point("温度B")) },
             factory);
 
-        await manager.StartAllAsync();
+        await manager.StartAllAsync(TestContext.Current.CancellationToken);
 
         List<DataSample> samples = await ReadSamplesAsync(manager, count: 4);
 
@@ -162,7 +162,7 @@ public class DeviceManagerTests
             lock (observedStates) observedStates.Add(handle.Runtime.State);
         };
 
-        await manager.StartAllAsync();
+        await manager.StartAllAsync(TestContext.Current.CancellationToken);
 
         Assert.True(await WaitUntilAsync(() =>
         {
@@ -180,7 +180,7 @@ public class DeviceManagerTests
         await using var manager = new DeviceManager(
             new[] { Config("设备", Point("温度")) }, _ => channel);
 
-        await manager.StartAllAsync();
+        await manager.StartAllAsync(TestContext.Current.CancellationToken);
 
         // StartAsync 只负责启动后台任务；串口是由轮询线程异步打开的，所以要等
         Assert.True(await WaitUntilAsync(() => channel.IsOpen));
@@ -201,7 +201,7 @@ public class DeviceManagerTests
         DeviceHandle handleA = manager.Devices[0];
         DeviceHandle handleB = manager.Devices[1];
 
-        await manager.StartAsync(handleA.Config.Id);
+        await manager.StartAsync(handleA.Config.Id, TestContext.Current.CancellationToken);
 
         Assert.True(handleA.Collector.IsRunning);
         Assert.False(handleB.Collector.IsRunning);
@@ -219,7 +219,7 @@ public class DeviceManagerTests
         var manager = new DeviceManager(
             new[] { Config("设备", Point("温度")) }, FactoryReturning(1));
 
-        await manager.StartAllAsync();
+        await manager.StartAllAsync(TestContext.Current.CancellationToken);
         await manager.DisposeAsync();
 
         // 通道已 Complete → WaitToReadAsync 立即返回 false（加超时保护，避免万一没 Complete 时整个测试挂死）
@@ -305,7 +305,7 @@ public class DeviceManagerTests
             [Config("设备A", Point("温度A"))], FactoryReturning(10));
 
         DeviceHandle added = manager.AddDevice(Config("设备B", Point("温度B")));
-        await manager.StartAllAsync();
+        await manager.StartAllAsync(TestContext.Current.CancellationToken);
 
         Assert.True(added.Collector.IsRunning);
 
@@ -367,7 +367,7 @@ public class DeviceManagerTests
 
         await using var manager = new DeviceManager([Config("设备A", Point("温度A"))], factory);
 
-        await manager.StartAllAsync();
+        await manager.StartAllAsync(TestContext.Current.CancellationToken);
         Assert.True(await WaitUntilAsync(() => factoryCalls[0].IsOpen));
 
         string id = manager.Devices[0].Config.Id;
@@ -385,7 +385,7 @@ public class DeviceManagerTests
         await using var manager = new DeviceManager(
             [Config("设备A", Point("温度A"))], FactoryReturning(10));
 
-        await manager.StartAllAsync();
+        await manager.StartAllAsync(TestContext.Current.CancellationToken);
         await ReadSamplesAsync(manager, count: 1);
 
         await manager.RemoveDeviceAsync(manager.Devices[0].Config.Id);
@@ -558,7 +558,7 @@ public class DeviceManagerTests
 
         Assert.False(manager.IsCollecting);
 
-        await manager.StartAllAsync();
+        await manager.StartAllAsync(TestContext.Current.CancellationToken);
         Assert.True(manager.IsCollecting);
 
         await manager.StopAllAsync();

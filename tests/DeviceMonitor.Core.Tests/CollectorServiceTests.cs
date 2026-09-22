@@ -102,7 +102,7 @@ public class CollectorServiceTests
         var channel = new FakeDeviceChannel { ResponseFactory = r => BuildResponse(r, 100) };
         var collector = new CollectorService(Config(Point(scale: 0.1)), channel);
 
-        await collector.StartAsync();
+        await collector.StartAsync(TestContext.Current.CancellationToken);
         try
         {
             DataSample? sample = await ReadSampleAsync(collector);
@@ -127,7 +127,7 @@ public class CollectorServiceTests
         var channel = new FakeDeviceChannel { ResponseFactory = r => BuildResponse(r, 1) };
         var collector = new CollectorService(Config(Point("温度"), Point("压力")), channel);
 
-        await collector.StartAsync();
+        await collector.StartAsync(TestContext.Current.CancellationToken);
         try
         {
             DataSample? first = await ReadSampleAsync(collector);
@@ -148,7 +148,7 @@ public class CollectorServiceTests
         var channel = new FakeDeviceChannel { ResponseFactory = r => BuildResponse(r, 11, 22) };
         var collector = new CollectorService(Config(Point("线圈", quantity: 2)), channel);
 
-        await collector.StartAsync();
+        await collector.StartAsync(TestContext.Current.CancellationToken);
         try
         {
             DataSample? first = await ReadSampleAsync(collector);
@@ -180,7 +180,7 @@ public class CollectorServiceTests
         var observedStates = new List<DeviceState>();
         collector.StatusChanged += _ => { lock (observedStates) observedStates.Add(collector.Runtime.State); };
 
-        await collector.StartAsync();
+        await collector.StartAsync(TestContext.Current.CancellationToken);
         try
         {
             // 连续 3 次超时 → 离线
@@ -219,7 +219,7 @@ public class CollectorServiceTests
         };
         var collector = new CollectorService(Config(Point()), channel);
 
-        await collector.StartAsync();
+        await collector.StartAsync(TestContext.Current.CancellationToken);
         try
         {
             Assert.True(await WaitUntilAsync(() => channel.OpenCount >= 2));   // 故障后重开过
@@ -246,7 +246,7 @@ public class CollectorServiceTests
         };
         var collector = new CollectorService(Config(Point()), channel);
 
-        await collector.StartAsync();
+        await collector.StartAsync(TestContext.Current.CancellationToken);
         try
         {
             Assert.True(await WaitUntilAsync(() => collector.Runtime.LastError is not null));
@@ -267,7 +267,7 @@ public class CollectorServiceTests
         var channel = new FakeDeviceChannel { ResponseFactory = r => BuildResponse(r, 1) };
         var collector = new CollectorService(Config(Point()), channel);
 
-        await collector.StartAsync();
+        await collector.StartAsync(TestContext.Current.CancellationToken);
         Assert.True(collector.IsRunning);
 
         await collector.StopAsync();
@@ -276,7 +276,7 @@ public class CollectorServiceTests
         Assert.False(channel.IsOpen);
         Assert.Equal(DeviceState.Offline, collector.Runtime.State);
 
-        await collector.StartAsync();          // 可重启
+        await collector.StartAsync(TestContext.Current.CancellationToken);   // 可重启
         try
         {
             Assert.True(collector.IsRunning);
@@ -293,10 +293,10 @@ public class CollectorServiceTests
         var channel = new FakeDeviceChannel { ResponseFactory = r => BuildResponse(r, 1) };
         var collector = new CollectorService(Config(Point()), channel);
 
-        await collector.StartAsync();
+        await collector.StartAsync(TestContext.Current.CancellationToken);
         try
         {
-            await Assert.ThrowsAsync<InvalidOperationException>(() => collector.StartAsync());
+            await Assert.ThrowsAsync<InvalidOperationException>(() => collector.StartAsync(TestContext.Current.CancellationToken));
         }
         finally
         {
