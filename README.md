@@ -36,7 +36,7 @@ DeviceMonitor.sln                      # 解决方案（传统 sln 格式，VS 2
 
 ## 当前进度
 
-**已打通 D1~D14：协议层 → 通道层 → 采集服务 → 端到端链路全部可跑。**
+**已打通 D1~D16：协议层 → 通道层 → 采集服务 → 端到端链路 → WPF 界面 + 设备配置持久化，全部可跑。**
 
 | 模块 | 状态 |
 |---|---|
@@ -51,16 +51,16 @@ DeviceMonitor.sln                      # 解决方案（传统 sln 格式，VS 2
 | `Protocol/ModbusRtuSlave`（FC 03/04/06/10 + 异常码） | ✅ 完成（D11） |
 | `Simulator`（串口外壳 + 四种波形 + 键盘强制超限） | ✅ 完成（D11~D12） |
 | `tools/MasterConsole`（控制台主站，验证端到端链路） | ✅ 完成（D12~D14） |
-| WPF 主窗口布局骨架 | ⚠️ 仍是占位（按钮全部禁用，等待 D15 起绑定 ViewModel） |
-| 报警 / SQLite / Excel / 实时曲线 / 配置持久化 / NLog | ⛔ 未开始（D15~D28） |
+| `Diagnostics/AppLog`（NLog 结构化日志，按天落盘） | ✅ 完成（D14 补做） |
+| DI 容器 + MVVM（CommunityToolkit.Mvvm）+ 主窗口实时数据表 | ✅ 完成（D15，桌面验收已过） |
+| `Services/JsonDeviceConfigStore`（`devices.json` 持久化）+ 设备增删改窗口 | ✅ 完成（D16，桌面验收已过） |
+| 报警 / SQLite / Excel / 实时曲线 | ⛔ 未开始（D17~D28） |
 
-> **待做清单**：DI + MVVM 基础设施（D15）、`devices.json` 设备与点表配置（D16）、实时数据表（D17）、
-> ScottPlot 实时曲线（D18）、`history.db` 批量落库（D19）、历史查询与曲线回放（D20）、
-> 上下限报警含死区（D21）、ClosedXML 报表导出（D22）、打磨与录屏（D23~D28）。
+> **待做清单**：实时数据表完善（D17）、ScottPlot 实时曲线（D18）、`history.db` 批量落库（D19）、
+> 历史查询与曲线回放（D20）、上下限报警含死区（D21）、ClosedXML 报表导出（D22）、打磨与录屏（D23~D28）。
 >
-> 注意：设计文档里列的技术栈目前**尚未引入** —— CommunityToolkit.Mvvm、
-> Microsoft.Extensions.DependencyInjection、Microsoft.Data.Sqlite、ClosedXML、NLog 都还没加引用；
-> 只有 ScottPlot 已加在 `DeviceMonitor.App` 上。
+> 技术栈引入情况：**CommunityToolkit.Mvvm、Microsoft.Extensions.DependencyInjection、NLog 已引入**；
+> `Microsoft.Data.Sqlite`、`ClosedXML` 尚未引入；`ScottPlot` 已加（D18 需换成 `ScottPlot.WPF`）。
 
 ## 环境要求
 
@@ -78,10 +78,12 @@ dotnet test  tests/DeviceMonitor.Core.Tests/DeviceMonitor.Core.Tests.csproj   # 
 测试框架：**xunit v3 + Microsoft.Testing.Platform**（进程内运行，不依赖 VSTest testhost；
 命令行 `dotnet test` 可用，较新的 VS 2022 也能在测试资源管理器中直接发现）。
 
-当前规模：**10 个测试文件、106 个用例、0 失败**（其中 3 个端到端集成用例默认 Skip，见下）。
+当前规模：**14 个测试文件、200 个用例、0 失败**（其中 3 个端到端集成用例默认 Skip，见下）。
 覆盖范围：CRC 已知向量、组帧逐字节比对、响应解析（正常 / 异常码 / 坏 CRC / 短帧 / 粘包）、
 `FrameAssembler` 半包与失步重同步、从站读写的异常码与地址过滤、主从对拍、
-`CollectorService` 的轮询与「连续超时 → 离线 → 自动恢复」状态机、`SerialChannel` 异常映射与虚拟串口回环收发。
+`CollectorService` 的轮询与「连续超时 → 离线 → 自动恢复」状态机、`SerialChannel` 异常映射与虚拟串口回环收发、
+配置校验器（端口/地址/数量越界、点位全禁用、Id 与寄存器范围重叠）、
+`devices.json` 往返与**跨次启动 Id 稳定性**、启动自检通道与通道工厂热替换。
 
 依赖虚拟串口的用例（`SerialChannelTests` / `SerialChannelLoopbackTests`）在**本机没有该端口时自动 Skip**，
 不会把测试套件拖红。端到端集成测试默认跳过，要跑它见「端到端自动化验证」。
@@ -143,10 +145,9 @@ $env:SIMULATOR_E2E = '1'; dotnet test tests/DeviceMonitor.Core.Tests
 
 ## 后续开发顺序
 
-按 `docs/DeviceMonitor-Design.md` §9 的 28 天清单推进（**D1~D14 已完成**）：
+按 `docs/DeviceMonitor-Design.md` §9 的 28 天清单推进（**D1~D16 已完成**）：
 
 ```
-DI + MVVM 骨架(D15) → devices.json 设备与点表(D16) → 实时数据表(D17) → ScottPlot 曲线(D18)
-→ SQLite 批量落库(D19) → 历史查询与曲线回放(D20) → 报警与死区(D21)
-→ Excel 报表(D22) → 打磨 / 录屏 / README(D23~D28)
+实时数据表(D17) → ScottPlot 曲线(D18) → SQLite 批量落库(D19) → 历史查询与曲线回放(D20)
+→ 报警与死区(D21) → Excel 报表(D22) → 打磨 / 录屏 / README(D23~D28)
 ```
