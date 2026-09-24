@@ -80,7 +80,7 @@ namespace DeviceMonitor.App.ViewModels
             ? utc.ToLocalTime().ToString("HH:mm:ss.fff")
             : "--:--:--";
 
-        /// <summary>限值摘要，如 "0.0 ~ 100.0"；两端都没配时显示 "—"。</summary>
+        /// <summary>限值摘要，如 "0.0 ~ 100.0"；两端都没配时显示 "--"。</summary>
         public string LimitText
         {
             get
@@ -125,7 +125,7 @@ namespace DeviceMonitor.App.ViewModels
             LastUpdatedUtc = sample.Utc;
         }
 
-        /// <summary>清空数值（工具栏"清空数值"用）。</summary>
+        /// <summary>清空数值（工具栏"清空数据"用）。会把报警灯一并熄掉。</summary>
         public void Reset()
         {
             RawValue = 0;
