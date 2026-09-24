@@ -29,7 +29,8 @@ namespace DeviceMonitor.App.ViewModels
 
             foreach(PointConfig config in handle.Config.Points.Where(p => p.Enabled))
             {
-                Points.Add(new PointViewModel(handle.Config.Id, handle.Config.Name, config));
+                // 传 this：点位要读设备的在线状态（表格里的圆点与"离线变灰"）
+                Points.Add(new PointViewModel(this, config));
             }
         }
 
@@ -37,6 +38,7 @@ namespace DeviceMonitor.App.ViewModels
 
         [ObservableProperty]
         [NotifyPropertyChangedFor(nameof(StateText))]
+        [NotifyPropertyChangedFor(nameof(IsOnline))]
         private DeviceState? _state = DeviceState.Offline;
 
         [ObservableProperty]
@@ -61,6 +63,12 @@ namespace DeviceMonitor.App.ViewModels
             DeviceState.Error => "异常",
             _ => "离线",
         };
+
+        /// <summary>
+        /// 是否在线。表格行用它驱动"离线变灰"（DataTrigger 绑布尔量，不做字符串比较）。
+        /// State 是 DeviceState?，null 一律当离线。
+        /// </summary>
+        public bool IsOnline => State == DeviceState.Online;
 
         /// <summary>把采集服务的运行时状态刷进界面（必须在 UI 线程调用）。</summary>
         public void RefreshFromRuntime()

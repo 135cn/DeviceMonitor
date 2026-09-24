@@ -3,12 +3,16 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:DeviceMonitor.App" xmlns:viewmodels="clr-namespace:DeviceMonitor.App.ViewModels" d:DataContext="{d:DesignInstance Type=viewmodels:MainViewModel}"
+        xmlns:local="clr-namespace:DeviceMonitor.App"
+        xmlns:viewmodels="clr-namespace:DeviceMonitor.App.ViewModels"
+        d:DataContext="{d:DesignInstance Type=viewmodels:MainViewModel}"
+        xmlns:conv="clr-namespace:DeviceMonitor.App.Converters"
         mc:Ignorable="d"
         Title="DeviceMonitor - 串口设备采集监控" Height="760" Width="1220">
 
     <Window.Resources>
         <local:DeviceStateToBrushConverter x:Key="StateToBrush"/>
+        <conv:AlarmLevelToBrushConverter x:Key="AlarmToBrush"/>
     </Window.Resources>
     <!--
         界面骨架（占位版）：功能从 D15 起逐步点亮。
@@ -21,7 +25,7 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- 工具栏（占位：D15 起绑定 ViewModel 命令） -->
+        <!-- 工具栏 -->
         <ToolBarTray Grid.Row="0">
             <ToolBar>
                 <Button Content="启动采集" Command="{Binding StartAllCommand}"/>
@@ -45,7 +49,7 @@
                 <ColumnDefinition Width="*" MinWidth="420"/>
             </Grid.ColumnDefinitions>
 
-            <!-- 左侧：设备列表（占位） -->
+            <!-- 左侧：设备列表 -->
             <Border Grid.Column="0" BorderBrush="#DDD" BorderThickness="0,0,1,0">
                 <DockPanel Margin="8">
                     <TextBlock DockPanel.Dock="Top" Text="设备列表" FontWeight="Bold" Margin="0,0,0,6"/>
@@ -92,25 +96,152 @@
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
-
+                <!-- ==================== 实时数据表 ==================== -->
                 <DataGrid Grid.Row="0"
                           ItemsSource="{Binding AllPoint}"
                           AutoGenerateColumns="False" IsReadOnly="True"
                           CanUserAddRows="False" HeadersVisibility="Column"
                           GridLinesVisibility="Horizontal"
                           EnableRowVirtualization="True"
-                          AlternatingRowBackground="#FAFAFA">
+                          RowHeight="26"
+                          FontSize="12"
+                          AlternationCount="2"
+                          BorderBrush="#DDD" BorderThickness="1">
+                    <DataGrid.ColumnHeaderStyle>
+                        <Style TargetType="DataGridColumnHeader">
+                            <Setter Property="FontWeight" Value="SemiBold"/>
+                            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+                            <Setter Property="Padding" Value="6,5"/>
+                            <Setter Property="Background" Value="#F3F3F3"/>
+                            <Setter Property="BorderBrush" Value="#DDD"/>
+                            <Setter Property="BorderThickness" Value="0,0,1,1"/>
+                        </Style>
+                    </DataGrid.ColumnHeaderStyle>
+
+                    <DataGrid.RowStyle>
+                        <Style TargetType="DataGridRow">
+                            <Setter Property="Background" Value="White"/>
+
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding (ItemsControl.AlternationIndex), RelativeSource={RelativeSource Self}}"
+                                             Value="1">
+                                    <Setter Property="Background" Value="#FAFAFA"/>
+                                </DataTrigger>
+
+                                <!-- 报警底色：声明顺序在后 → 优先级高于斑马纹 -->
+                                <DataTrigger Binding="{Binding IsLowAlarm}" Value="True">
+                                    <Setter Property="Background" Value="#FFF6E8"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding IsHighAlarm}" Value="True">
+                                    <Setter Property="Background" Value="#FDEDED"/>
+                                </DataTrigger>
+
+                                <DataTrigger Binding="{Binding Device.IsOnline}" Value="False">
+                                    <Setter Property="Opacity" Value="0.5"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </DataGrid.RowStyle>
+                    
                     <DataGrid.Columns>
-                        <DataGridTextColumn Header="设备" Binding="{Binding DeviceName}" Width="130"/>
-                        <DataGridTextColumn Header="点位" Binding="{Binding Name}" Width="110"/>
-                        <DataGridTextColumn Header="原始值" Binding="{Binding RawValue}" Width="90"/>
-                        <DataGridTextColumn Header="工程值" Binding="{Binding DisplayText}" Width="90"/>
-                        <DataGridTextColumn Header="单位" Binding="{Binding Unit}" Width="60"/>
-                        <DataGridTextColumn Header="更新时间"
-                                            Binding="{Binding LastUpdatedUtc, StringFormat='HH:mm:ss.fff'}"
-                                            Width="130"/>
+                        <!-- 在线状态圆点 -->
+                        <DataGridTemplateColumn Header="状态" Width="70">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal"
+                                                HorizontalAlignment="Center" VerticalAlignment="Center">
+                                        <Ellipse Width="10" Height="10" VerticalAlignment="Center"
+                                                 Fill="{Binding Device.State, Converter={StaticResource StateToBrush}}"/>
+                                        <TextBlock Text="{Binding Device.StateText}" Margin="5,0,0,0" FontSize="11" VerticalAlignment="Center"/>
+                                    </StackPanel> 
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                            
+                            
+                        </DataGridTemplateColumn>
+                        <DataGridTextColumn Header="设备" Binding="{Binding DeviceName}" Width="*" MinWidth="90"/>
+                        <DataGridTextColumn Header="点位" Binding="{Binding Name}" Width="*" MinWidth="80"/>
+                        <DataGridTextColumn Header="原始值" Binding="{Binding RawText}" Width="76">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="HorizontalAlignment" Value="Right"/>
+                                    <Setter Property="FontFamily" Value="Consolas"/>
+                                    <Setter Property="Foreground" Value="#555"/>
+                                    <Setter Property="Padding" Value="0,0,6,0"/>
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
+                        
+                        <DataGridTextColumn Header="工程值" Binding="{Binding DisplayText}" Width="92">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="HorizontalAlignment" Value="Right"/>
+                                    <Setter Property="FontFamily" Value="Consolas"/>
+                                    <Setter Property="FontWeight" Value="SemiBold"/>
+                                    <Setter Property="Padding" Value="0,0,6,0"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsLowAlarm}" Value="True">
+                                            <Setter Property="Foreground" Value="#C77700"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding IsHighAlarm}" Value="True">
+                                            <Setter Property="Foreground" Value="#D13A3A"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
+
+                        <DataGridTextColumn Header="单位" Binding="{Binding Unit}" Width="52">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="HorizontalAlignment" Value="Center"/>
+                                    <Setter Property="Foreground" Value="#777"/>
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
+
+                        <DataGridTextColumn Header="限值（低~高）" Binding="{Binding LimitText}" Width="120">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="HorizontalAlignment" Value="Right"/>
+                                    <Setter Property="FontFamily" Value="Consolas"/>
+                                    <Setter Property="Foreground" Value="#999"/>
+                                    <Setter Property="FontSize" Value="11"/>
+                                    <Setter Property="Padding" Value="0,0,6,0"/>
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
+
+                        <DataGridTemplateColumn Header="报警" Width="84">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal" 
+                                                HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                ToolTip="{Binding LimitText, StringFormat='限值 {0}'}">
+                                        <Ellipse Width="10" Height="10" VerticalAlignment="Center"
+                                                 Fill="{Binding AlarmLevel, Converter={StaticResource AlarmToBrush}}"/>
+                                        <TextBlock Text="{Binding AlarmText}" Margin="5,0,0,0"
+                                                   FontSize="11" VerticalAlignment="Center"
+                                                   Foreground="{Binding AlarmLevel, Converter={StaticResource AlarmToBrush}}"/>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                            
+                        </DataGridTemplateColumn>
+                        <DataGridTextColumn Header="更新时间" Binding="{Binding LastUpdatedText}" Width="106">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="HorizontalAlignment" Value="Right"/>
+                                    <Setter Property="FontFamily" Value="Consolas"/>
+                                    <Setter Property="Foreground" Value="#666" />
+                                    <Setter Property="Padding" Value="0,0,6,0"/>
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
                     </DataGrid.Columns>
                 </DataGrid>
+                
+                
                 <GridSplitter Grid.Row="1" Height="4" HorizontalAlignment="Stretch" Background="#EEE"/>
                 <!-- 曲线区（D18 换成 ScottPlot.WPF 的控件） -->
                 <Border Grid.Row="2" BorderBrush="#DDD" BorderThickness="1" Background="#FAFAFA">
