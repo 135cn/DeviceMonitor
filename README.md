@@ -34,9 +34,13 @@ DeviceMonitor.sln                      # 解决方案（传统 sln 格式，VS 2
 
 规则：**上位机连奇数端口，模拟器连偶数端口**，同一对的两端由 VSPD / com0com 配对。
 
+> ⚠️ **这两对不是天生就有的**：VSPD 装好后默认只建了 `COM9↔COM10`，
+> `COM11↔COM12` 需要在 VSPD 界面里手工创建过才能用。
+> 想确认本机有哪些口，跑一句 `SerialPort.GetPortNames()` 即可。
+
 ## 当前进度
 
-**已打通 D1~D16：协议层 → 通道层 → 采集服务 → 端到端链路 → WPF 界面 + 设备配置持久化，全部可跑。**
+**已打通 D1~D17：协议层 → 通道层 → 采集服务 → 端到端链路 → WPF 界面 + 设备配置持久化 + 实时数据表，全部可跑。**
 
 | 模块 | 状态 |
 |---|---|
@@ -54,9 +58,10 @@ DeviceMonitor.sln                      # 解决方案（传统 sln 格式，VS 2
 | `Diagnostics/AppLog`（NLog 结构化日志，按天落盘） | ✅ 完成（D14 补做） |
 | DI 容器 + MVVM（CommunityToolkit.Mvvm）+ 主窗口实时数据表 | ✅ 完成（D15，桌面验收已过） |
 | `Services/JsonDeviceConfigStore`（`devices.json` 持久化）+ 设备增删改窗口 | ✅ 完成（D16，桌面验收已过） |
-| 报警 / SQLite / Excel / 实时曲线 | ⛔ 未开始（D17~D28） |
+| 实时数据表：在线状态圆点 + 报警灯 + 数值列格式化（`AlarmLimits` 限值判定） | ✅ 完成（D17，桌面验收已过） |
+| 报警入库 / SQLite / Excel / 实时曲线 | ⛔ 未开始（D18~D28） |
 
-> **待做清单**：实时数据表完善（D17）、ScottPlot 实时曲线（D18）、`history.db` 批量落库（D19）、
+> **待做清单**：ScottPlot 实时曲线（D18）、`history.db` 批量落库（D19）、
 > 历史查询与曲线回放（D20）、上下限报警含死区（D21）、ClosedXML 报表导出（D22）、打磨与录屏（D23~D28）。
 >
 > 技术栈引入情况：**CommunityToolkit.Mvvm、Microsoft.Extensions.DependencyInjection、NLog 已引入**；
@@ -145,9 +150,9 @@ $env:SIMULATOR_E2E = '1'; dotnet test tests/DeviceMonitor.Core.Tests
 
 ## 后续开发顺序
 
-按 `docs/DeviceMonitor-Design.md` §9 的 28 天清单推进（**D1~D16 已完成**）：
+按 `docs/DeviceMonitor-Design.md` §9 的 28 天清单推进（**D1~D17 已完成**）：
 
 ```
-实时数据表(D17) → ScottPlot 曲线(D18) → SQLite 批量落库(D19) → 历史查询与曲线回放(D20)
+ScottPlot 曲线(D18) → SQLite 批量落库(D19) → 历史查询与曲线回放(D20)
 → 报警与死区(D21) → Excel 报表(D22) → 打磨 / 录屏 / README(D23~D28)
 ```
