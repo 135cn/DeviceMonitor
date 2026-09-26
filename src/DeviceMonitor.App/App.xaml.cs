@@ -1,9 +1,10 @@
 using DeviceMonitor.App.ViewModels;
 using DeviceMonitor.Core.Channels;
-using DeviceMonitor.Core.Models;
 using DeviceMonitor.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
 using System.Windows;
+using DeviceMonitor.Core.DataAccess;
+using System.IO;
 
 namespace DeviceMonitor.App;
 
@@ -20,7 +21,7 @@ public partial class App : Application
         base.OnStartup(e);
         var services = new ServiceCollection();
 
-        services.AddSingleton<IDeviceConfigStore>(_=> new JsonDeviceConfigStore());
+        services.AddSingleton<IDeviceConfigStore>(_ => new JsonDeviceConfigStore());
 
         services.AddSingleton(provider =>
         {
@@ -38,10 +39,25 @@ public partial class App : Application
                 config => new ProbeDeviceChannel(config.PortName));
         });
 
+        // ---- 历史落库----
+        // 库文件放 exe 同目录（和 devices.json 一样），保持"单文件零部署"。
+        // 注册顺序是有意的：HistoryService 在 DeviceManager 之后注册，容器**按逆序释放**，
+        // 于是它先停（冲刷余量）再拆采集 —— 不会出现"边拆采集边写库"。
+        services.AddSingleton<IHistoryStore>(_ => new SqliteHistoryStore(
+            Path.Combine(AppContext.BaseDirectory, "history.db")));
+
+        services.AddSingleton<HistoryService>();
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<MainWindow>();
 
         _service = services.BuildServiceProvider();
+
+        // 历史落库随应用启动（不等"启动采集"按钮）：采集没启动时通道里没数据，它只是空转等待。
+        // 这里同步等一次，是为了"界面出来时表和索引已经建好"——否则第一次落库前才建库，
+        // 一旦失败，用户看到的是界面正常、只是历史悄悄没记（最难查的那种）。
+        _service.GetRequiredService<HistoryService>()
+            .StartAsync(_service.GetRequiredService<DeviceManager>().HistorySamples)
+            .GetAwaiter().GetResult();
 
         MainWindow window = _service.GetRequiredService<MainWindow>();
 
