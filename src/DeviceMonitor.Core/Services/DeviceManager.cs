@@ -59,15 +59,48 @@ namespace DeviceMonitor.Core.Services
                 SingleReader = false,
             });
 
+        /// <summary>
+        /// 历史落库专用通道（D19）。
+        ///
+        /// ★ **为什么必须另开一条通道**：<c>Channel&lt;T&gt;</c> 的多个 reader 是**竞争**关系 ——
+        ///   每个元素只会被其中一个 reader 取走。若让 UI 和存储在 <see cref="Sample"/> 上
+        ///   各挂一个消费者，两边会**各拿到一半样本**，而且界面上完全看不出来
+        ///   （数值照跳、曲线照滚，只是数据少了一半）。所以写入口只留一处，在这里扇出成两条流。
+        ///
+        /// 两条流的策略差异是**刻意**的：
+        ///   - UI：DropOldest —— 界面只关心"最新值"，卡顿时丢掉旧的完全可接受；
+        ///   - 存储：Wait —— 满了就写不进去（TryWrite 返回 false），于是可以**计数 + 告警**，
+        ///     绝不静默丢样本。容量 10 万条：1 秒轮询 6 个点位时约等于 4.6 小时，
+        ///     正常抖动撑不满，除非磁盘卡死。
+        /// </summary>
+        private readonly Channel<DataSample> _historySamples;
+
+        /// <summary>因历史缓冲满而丢弃的样本数（正常恒为 0）。</summary>
+        private long _droppedHistorySamples;
+
         private bool _disposed;
         /// <param name="configs">设备配置列表。</param>
         /// <param name="channelFactory">
         /// 通道工厂，默认创建真实串口通道；测试时注入假通道即可脱离硬件。
         /// </param>
-        public DeviceManager(IEnumerable<DeviceConfig> configs, Func<DeviceConfig, IDeviceChannel>? channelFactory = null)
+        /// <param name="historyCapacity">
+        /// 历史通道容量。默认 10 万条；测试里传入很小的值即可验证"缓冲满 → 计数丢弃"这条路径。
+        /// </param>
+        public DeviceManager(
+            IEnumerable<DeviceConfig> configs,
+            Func<DeviceConfig, IDeviceChannel>? channelFactory = null,
+            int historyCapacity = 100_000)
         {
+            ArgumentOutOfRangeException.ThrowIfLessThan(historyCapacity, 1);
 
             _channelFactory = channelFactory ?? (config => new SerialChannel(config));
+
+            _historySamples = Channel.CreateBounded<DataSample>(new BoundedChannelOptions(historyCapacity)
+            {
+                FullMode = BoundedChannelFullMode.Wait,   // 满了就写不进 → 可计数，见 _historySamples 注释
+                SingleWriter = false,
+                SingleReader = true,                      // 只有 HistoryService 一个消费者
+            });
 
             foreach (DeviceConfig config in configs)
             {
@@ -94,8 +127,22 @@ namespace DeviceMonitor.Core.Services
             }
         }
 
-        /// <summary>所有设备的样本汇总流（UI / 存储侧唯一的消费入口）。</summary>
+        /// <summary>
+        /// 所有设备的样本汇总流（**UI 专用**）。
+        /// 存储走 <see cref="HistorySamples"/> —— 两条流各自独立，别在这条上再挂第二个消费者。
+        /// </summary>
         public ChannelReader<DataSample> Sample => _samples.Reader;
+
+        /// <summary>
+        /// 历史落库专用流（D19）。**只给 HistoryService 一个消费者**，见 <see cref="_historySamples"/> 注释。
+        /// </summary>
+        public ChannelReader<DataSample> HistorySamples => _historySamples.Reader;
+
+        /// <summary>
+        /// 因历史缓冲满而被丢弃的样本数（正常恒为 0）。
+        /// 非 0 说明"写库速度跟不上采集速度"，值得查（磁盘慢 / 库被别的进程占着）。
+        /// </summary>
+        public long DroppedHistorySamples => Interlocked.Read(ref _droppedHistorySamples);
 
         /// <summary>任一设备状态变化时触发。⚠️ 在采集线程上触发，订阅方需自行切回 UI 线程。</summary>
         public event Action<DeviceHandle>? DeviceStatusChanged;
@@ -397,7 +444,13 @@ namespace DeviceMonitor.Core.Services
                 {
                     await foreach (DataSample sample in handle.Collector.Samples.Reader.ReadAllAsync(_cts.Token))
                     {
+                        // 唯一的写入口：同一条样本同时进"UI 流"和"历史流"（扇出，不是共享队列）
                         _samples.Writer.TryWrite(sample);
+
+                        // FullMode=Wait 时，缓冲满会让 TryWrite 返回 false（新样本写不进去）。
+                        // 这时宁可丢最新的 + 计数告警，也不要静默无痕地丢。
+                        if (!_historySamples.Writer.TryWrite(sample))
+                            CountHistoryDrop();
                     }
                 }
                 catch (OperationCanceledException)
@@ -418,6 +471,15 @@ namespace DeviceMonitor.Core.Services
             // 往已 Complete 的通道继续写（TryWrite 静默返回 false，不报错但持续泄漏）。
             lock (_gate)
                 _samplePumps[handle.Config.Id] = pump;
+        }
+
+        /// <summary>历史缓冲满：计数 + 限流告警（每 1000 条报一次，避免刷屏）。</summary>
+        private void CountHistoryDrop()
+        {
+            long dropped = Interlocked.Increment(ref _droppedHistorySamples);
+
+            if (dropped == 1 || dropped % 1000 == 0)
+                Log.Warn("历史落库缓冲已满，已丢弃 {Dropped} 条样本（写库速度跟不上采集速度）。", dropped);
         }
 
         public async ValueTask DisposeAsync()
@@ -447,6 +509,7 @@ namespace DeviceMonitor.Core.Services
             catch (OperationCanceledException) { }
 
             _samples.Writer.TryComplete();
+            _historySamples.Writer.TryComplete();   // 两条流都要结束，否则历史消费者会一直等
 
             foreach (DeviceHandle handle in Devices)
             {

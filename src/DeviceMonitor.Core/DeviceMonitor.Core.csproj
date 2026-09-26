@@ -11,6 +11,10 @@
     <PackageReference Include="System.IO.Ports" Version="10.0.10" />
     <!-- D14 日志：NLog 4.7.12（本地 NuGet 缓存有，lib/netstandard2.0 供 net8.0 引用） -->
     <PackageReference Include="NLog" Version="4.7.12" />
+    <!-- D19 历史库：Microsoft.Data.Sqlite 8.0.6（与本项目 net8.0 对齐；
+         依赖 Microsoft.Data.Sqlite.Core + SQLitePCLRaw.bundle_e_sqlite3 2.1.6，
+         含 runtimes/win-x64/native/e_sqlite3.dll，离线可还原） -->
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.6" />
   </ItemGroup>
 
   <ItemGroup>

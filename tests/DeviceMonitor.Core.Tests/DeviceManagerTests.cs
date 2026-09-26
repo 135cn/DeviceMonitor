@@ -3,6 +3,7 @@ using DeviceMonitor.Core.Models;
 using DeviceMonitor.Core.Protocol;
 using DeviceMonitor.Core.Services;
 using System.Diagnostics;
+using System.Threading.Channels;
 using Xunit;
 
 namespace DeviceMonitor.Core.Tests;
@@ -563,6 +564,89 @@ public class DeviceManagerTests
 
         await manager.StopAllAsync();
         Assert.False(manager.IsCollecting);
+    }
+
+    // ---------------- 样本扇出（D19） ----------------
+
+    /// <summary>
+    /// 把通道读到"已完成且读空"，返回条数。
+    /// ⚠️ 调用前必须先 <c>DisposeAsync</c>：只有它才会 Complete 两条通道，
+    /// 否则 WaitToReadAsync 会一直等下去、测试挂死。
+    /// </summary>
+    private static async Task<int> DrainToEndAsync(ChannelReader<DataSample> reader)
+    {
+        int count = 0;
+
+        while (await reader.WaitToReadAsync(TestContext.Current.CancellationToken))
+        {
+            while (reader.TryRead(out DataSample? sample))
+            {
+                if (sample is not null)
+                    count++;
+            }
+        }
+
+        return count;
+    }
+
+    [Fact]
+    public async Task 样本扇出_UI与历史两个消费者各拿全量_而不是平分()
+    {
+        var manager = new DeviceManager([Config("设备A", Point("温度A"))], FactoryReturning(100));
+
+        await manager.StartAllAsync(TestContext.Current.CancellationToken);
+        await Task.Delay(300, TestContext.Current.CancellationToken);   // 让采样泵跑一会儿，产生若干样本
+        await manager.DisposeAsync();           // 停采集 + 结束泵 + Complete 两条通道
+
+        // 通道已结束 → 可以精确"读到空"，不用靠 sleep 猜。
+        // ★ 两条流**并发**读，模拟真实场景（UI 和存储同时在消费）。
+        Task<int> uiDrain = DrainToEndAsync(manager.Sample);
+        Task<int> historyDrain = DrainToEndAsync(manager.HistorySamples);
+        await Task.WhenAll(uiDrain, historyDrain);
+
+        int uiCount = uiDrain.Result;
+        int historyCount = historyDrain.Result;
+
+        Assert.True(uiCount > 0, "UI 通道应当收到样本");
+
+        // ★ 这条断言就是"共享通道"那个坑的守门人：Channel<T> 的多 reader 是**竞争**关系，
+        //   若两条消费者挂的是同一条通道，两边会各拿一部分（谁多谁少看调度），
+        //   绝不可能"两边都拿到全量"。做过变异验证：把 HistorySamples 改成 _samples.Reader，
+        //   这条立刻失败。
+        Assert.Equal(uiCount, historyCount);
+    }
+
+    [Fact]
+    public async Task 历史缓冲满_计数并丢弃_且不牵连UI流()
+    {
+        // historyCapacity 给 2：完全不消费历史通道时它瞬间就满
+        await using var manager = new DeviceManager(
+            [Config("设备A", Point("温度A"))], FactoryReturning(100), historyCapacity: 2);
+
+        await manager.StartAllAsync(TestContext.Current.CancellationToken);
+
+        Assert.True(await WaitUntilAsync(() => manager.DroppedHistorySamples > 0),
+            "历史缓冲应当已满并开始计数丢弃");
+        Assert.True(manager.DroppedHistorySamples > 0);
+
+        // 关键：历史流被丢弃，**不能牵连 UI 流**（两条通道彼此独立）
+        List<DataSample> ui = await ReadSamplesAsync(manager, count: 3);
+        Assert.Equal(3, ui.Count);
+    }
+
+    [Fact]
+    public async Task 释放后_历史通道也结束_消费者不会挂死()
+    {
+        var manager = new DeviceManager([Config("设备A", Point("温度A"))], FactoryReturning(100));
+
+        await manager.StartAllAsync(TestContext.Current.CancellationToken);
+        await Task.Delay(50, TestContext.Current.CancellationToken);
+        await manager.DisposeAsync();
+
+        await DrainToEndAsync(manager.HistorySamples);
+
+        // 通道已 Complete 且读空 → 再问一次会立刻得到 false，而不是永远等下去
+        Assert.False(await manager.HistorySamples.WaitToReadAsync(TestContext.Current.CancellationToken));
     }
 
 }
