@@ -14,7 +14,13 @@ public partial class MainWindow : Window
         InitializeComponent();
         _viewModels = viewModel;
         DataContext = viewModel;
+
+
+        viewModel.Curve.AttachPlot(CurvePlot.Plot);
+        viewModel.Curve.RedrawRequested += OnRedrawRequested;
     }
+
+    private void OnRedrawRequested() => CurvePlot.Refresh();
 
     protected override void OnClosed(EventArgs e)
     {

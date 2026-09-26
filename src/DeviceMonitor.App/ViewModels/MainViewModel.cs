@@ -77,9 +77,14 @@ namespace DeviceMonitor.App.ViewModels
 
         public ObservableCollection<PointViewModel> AllPoint { get; } = new();
 
+        public CurveViewModel Curve { get; } = new();
+
         [ObservableProperty]
         [NotifyCanExecuteChangedFor(nameof(RemoveDeviceCommand))]
         private DeviceViewModel? _selectedDevice;
+
+        partial void OnSelectedDeviceChanged(DeviceViewModel? value) => Curve.SelectDevice(value);
+
 
         [ObservableProperty]
         private string _stateText = "就绪";
@@ -159,6 +164,7 @@ namespace DeviceMonitor.App.ViewModels
                 point.Reset();
             }
 
+            Curve.Clear();
             ReceivedSampleCount = 0;
             LastRefreshText = "--:--:--";
         }
@@ -400,7 +406,13 @@ namespace DeviceMonitor.App.ViewModels
                 {
                     if (_pointIndex.TryGetValue(pair.Key, out PointViewModel? point))
                         point.Apply(pair.Value);
+
+                    // 同一条样本也喂给曲线；不属于当前绘制设备的会被 CurveViewModel 忽略
+                    Curve.Append(pair.Value);
                 }
+
+                // 一整批只设一次坐标轴 + 重绘，避免 150ms 内触发几十次渲染
+                Curve.EndBatch();
 
                 _pending.Clear();
 

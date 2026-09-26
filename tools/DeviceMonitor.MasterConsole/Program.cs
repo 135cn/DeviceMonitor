@@ -1,4 +1,4 @@
-﻿// ============================================================================
+// ============================================================================
 // DeviceMonitor.MasterConsole —— 控制台主站（D12~D14 的验证/演示工具）
 //
 // 用 Core 的 CollectorService + SerialChannel 轮询从站并打印样本。
@@ -15,7 +15,7 @@ using DeviceMonitor.Core.Models;
 using DeviceMonitor.Core.Services;
 
 // ---------------- 1. 命令行参数 ----------------
-string port = "COM9";           // 主站侧端口（从站/模拟器默认监听 COM10）
+string port = "COM9";            // 主站侧端口（从站/模拟器默认监听 COM10）
 byte slaveId = 1;
 int pointCount = 6;
 int baudRate = 9600;

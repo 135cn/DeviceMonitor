@@ -8,9 +8,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<!-- 注意：这是 plain ScottPlot，D18 画曲线要换成 ScottPlot.WPF（含 WPF 控件），
-         现在不用可以先删掉，省 5MB 的 SkiaSharp 原生库 -->
-		<PackageReference Include="ScottPlot" Version="5.1.59" />
+		<PackageReference Include="ScottPlot.WPF" Version="5.1.59" />
 	</ItemGroup>
 
 	<ItemGroup>
