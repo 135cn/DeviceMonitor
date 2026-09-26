@@ -56,7 +56,8 @@ DeviceMonitor.sln
 | D15 DI + MVVM + 主窗口布局 + 实时表格绑定 | ✅（UI 桌面验收已通过，见第八节证据） |
 | D16 设备编辑窗口 + devices.json | ✅ 代码已全部落库（10 个提交），review 通过：清 obj 后**全量干净重建 0 警告 0 错误** / 200 测试全绿（3 skip）/ 端到端链路实测 / **桌面验收已通过**（2026-09-23，证据见第八节） |
 | D17 实时数据表：在线圆点 + 报警灯 + 列格式化 | ✅ 代码 3 个提交（`01a04f2` / `a1efa8b` / `312caed`）；**桌面验收已通过**（2026-09-24，证据见第八节） |
-| D18~D28 曲线 / SQLite / 历史回放 / 报警 / Excel / 录屏 / README / 简历 | ⬜ |
+| D18 实时曲线（ScottPlot.WPF；滚动窗口 + 复用主 VM 的 150ms 节流） | ✅ 代码 1 个提交（`f091d34`）；**桌面验收已通过**（2026-09-26，见第八节 8.3） |
+| D19~D28 SQLite / 历史回放 / 报警 / Excel / 录屏 / README / 简历 | ⬜ |
 
 ---
 
@@ -80,6 +81,9 @@ dotnet restore DeviceMonitor.sln -p:NuGetAudit=false
 dotnet build DeviceMonitor.sln -c Debug --no-restore -p:NuGetAudit=false -m:1 -v:n
 
 # 跑测试（**不要用 dotnet test**，见坑 #3）
+# ⚠️ 受限沙箱下必须先把 TMP 指到工作区内，否则 14 条测试会假失败（坑 #40）
+$env:TMP = "$root\.cache\tmp"; $env:TEMP = $env:TMP
+New-Item -ItemType Directory -Force $env:TMP | Out-Null
 dotnet run --project tests\DeviceMonitor.Core.Tests -c Debug --no-restore -p:NuGetAudit=false
 
 # 只跑某一个测试类（单横线！双横线 --filter-class 会报 unknown option，见坑 #24）
@@ -96,8 +100,9 @@ dotnet restore src\DeviceMonitor.Core\DeviceMonitor.Core.csproj -p:RestoreSource
 | .NET SDK | 10.0.302（项目 target `net8.0` / `net8.0-windows`） |
 | Shell | **Windows PowerShell 5.1**（不是 pwsh 7，编码行为不同） |
 | 虚拟串口 | 已装 VSPD 6.9；**约定 COM9 = 上位机/主站，COM10 = 从站/模拟器**；第二对 COM11↔COM12 |
-| 外网 | 沙箱一般**无网**：NuGet 只能用本机缓存。`ScottPlot.WPF` **不在缓存里**（D18 画曲线时需要学员在 VS 里联网还原） |
-| GUI | **无法在此环境自动验证 WPF**，必须请学员手动跑 |
+| 外网 | 沙箱一般**无网**：NuGet 只能用本机缓存。`ScottPlot.WPF 5.1.59` 已于 2026-09-26 进入全局缓存（学员在 VS 里联网还原过），所以本机构建**不需要再联网**，也不需要额外的 `NuGet.config` |
+| `%TEMP%` | ⚠️ **受限沙箱不能写 `%TEMP%`**。`JsonDeviceConfigStoreTests` 用 `Path.GetTempPath()` 建临时目录 —— 不设 `TMP` 就会**14 条一起失败**（`UnauthorizedAccessException`），看起来极像代码回归。详见坑 #40 |
+| GUI | **无法在此环境自动验证 WPF**，必须请学员手动跑。但**绘图数据通路可以离线验证**：`Plot` 是纯模型（`WpfPlot` 只是渲染外壳），见坑 #38 |
 
 **端到端验证（D12 起可用）**
 
@@ -166,7 +171,7 @@ $env:SIMULATOR_E2E_PORT = 'COM9'               # 可选，默认 COM9
 | 23 | `ReplaceDeviceAsync` 先删后建 | 新配置端口冲突时，老设备已经被删掉 → **数据丢失**。必须先做端口冲突预检再执行删除 |
 | 24 | xunit v3 跑单个测试类的过滤器语法 | **是单横线** `-class "*类名*"`（`-method` / `-namespace` / `-trait` 同理）；用 `--filter-class` 会报 `unknown option`，`--filter "..."` 是另一套 query 语法且不能与简单过滤器混用 |
 | 25 | **模型属性初始化器 + System.Text.Json = 静默随机值** | `public string Id { get; set; } = Guid.NewGuid().ToString("N")` 看着无害，但**反序列化遇到 JSON 缺该字段时会保留初始化器的值** → 每次 Load 都得到一个全新随机 Id。判断"缺 Id"的 `string.IsNullOrWhiteSpace` 永远为 false，补齐与写回逻辑**全部静默失效**，而且原测试因为只断言"Id 非空"被随机值**假性满足**（vacuous pass）整整骗过去了。修法：模型默认值改 `string.Empty`，补齐职责交给 `JsonDeviceConfigStore` |
-| 26 | 便携式 app 的启动路径不能 new SerialChannel | `new SerialChannel(config)` **构造函数就打开端口** → devices.json 里留一条坏端口，软件启动即崩，用户只能手工改 JSON 自救。改用 `ProbeDeviceChannel`（只记端口名、`Open()` 必失败、实现 `IDegradableDeviceChannel`）装载，点"启动采集"时再 `SetChannelFactory(SerialChannel)` + `RecreateDeviceHandles()` 换回真串口 |
+| 26 | 便携式 app 的启动路径用 `ProbeDeviceChannel` 装载 | ⚠️ **本条原文描述有误，2026-09-26 已核实更正**。原文写"`new SerialChannel(config)` 构造函数就打开端口 → 留一条坏端口则软件启动即崩"，但翻 git 历史：**从最初的提交 `5f5a5a2` 起构造函数就只存配置**（`=> _config = config;`），`Open()` 仅由 `CollectorService` 的采集循环调用 —— 构造阶段本来就不开端口，**不存在"启动即崩"**。真正的好处有两条：① `ProbeDeviceChannel` 实现 `IDegradableDeviceChannel`，采集循环对它的 `Open()` 失败会**降级成一次普通轮询失败**（`TimeoutException` → 按 `OfflineErrorThreshold` 判离线 + 退避重连，与真拔线表现一致），而 `SerialChannel` 抛出的 `IOException` 会走"通道级故障反复重建"那条重路径、日志刷屏；② `Open()` 恒失败，让"启动阶段绝不占口"成为**代码保证**，而不是"恰好构造函数是惰性的"。点"启动采集"时由 `MainViewModel` 用 `SetChannelFactory(SerialChannel)` + `RecreateDeviceHandles()` 换回真串口。⚠️ 同一句错话还写在 `App.xaml.cs` / `ProbeDeviceChannel.cs` / `DeviceManager.cs` 的注释里，**尚未更正**（要改的话三处一起） |
 | 27 | `x => x + y` 拼成 `x + y`（丢了 lambda 头） | `BoundedChannelOptions(20_000 + options)` 会编译成"把委托对象和 options 相加"，`+=` 重载在委托上合法 → **能编译通过**但语义完全错（不会报错，只是队列容量变成 2 万）。改代码后务必扫一眼同类表达式 |
 | 28 | 反射读私有字段的测试，重构时会静默失效 | `GetRegisteredPumpCount` 用 `GetField("_samplePumps")`；若将来把字段改名/改类型，`Assert.NotNull(field)` 会让它**失败而不是静默通过**——这是刻意的，别把断言删掉换成"找不到就跳过" |
 | 29 | **清空 obj 后全量重建才冒出来的警告** | 有个反直觉现象：日常增量构建 **0 警告**，但 `rm -rf */obj */bin` 后全量重建会报 23 条 `xUnit1051`。原因不是增量构建把警告吞了，而是**分析器只在源文件真正被重新编译时才运行**——增量构建下测试项目无需重编，分析器自然不跑。所以"日常构建干净"**不能**当作"没有警告"的证据。**结论**：断言代码无警告，必须清 obj 后全量重建，否则你会在 CI（永远是干净构建）上被打脸 |
@@ -177,6 +182,10 @@ $env:SIMULATOR_E2E_PORT = 'COM9'               # 可选，默认 COM9
 | 34 | 用"提交副作用"函数做校验 | `Validate()` 里调 `ApplyFieldsToDraft()`（把界面字段写回 `Draft`）。在"只在构造时校验一次"的年代看不出问题，一旦改成"每次按键都校验"，就会把**正在输入的半成品**（末尾空格、未输完的数字）经 `Trim()` 写进工作副本。**修法**：校验用**只读快照**（本仓库是 `BuildPreview()`），提交留给用户点"确定"时。校验与提交必须分离 |
 | 35 | 死掉的 `CanExecute` 命令会误导后来人 | VM 里曾有个 `[RelayCommand(CanExecute = nameof(CanConfirm))]` 的 `Confirm` 命令，**从未被任何 XAML 绑定**（按钮走的是 code-behind 的 `Click`，因为关窗必须由 View 负责 `DialogResult`）。等于存在第二套互不相干的可用性判断，读代码时极易误判"按钮状态由谁决定"。**结论**：唯一事实来源只能有一个；发现这类悬空命令直接删掉并写明原因，不要留着"以后可能用" |
 | 36 | **模拟器的波形只写「输入寄存器」，点位用 FC03 会永远静止** | `Simulator/Program.cs` 里保持寄存器只在启动时赋 `i*10`（FC03 读）**永不更新**，每轮刷新的是 `InputRegisters`（FC04 读）。所以新建点位若用默认功能码 3，读数永远是 `0,10,20,30,40,50` —— 现象很像"采不到数据/软件坏了"，实际只是读错了寄存器区。**这是排查"数值不动"的第一优先项**。详见第八节 8.2 |
+| 37 | **`WpfPlot.Plot` 是只读属性 —— 接线方向不能反** | D18 给曲线接线时，本能会写"VM 建 `Plot`、View 把它赋给控件"，编译直接挂：`error CS0200: 无法为属性或索引器"WpfPlotBase.Plot"赋值 - 它是只读的`。ScottPlot.WPF 的控件**自己 new 好了 Plot**，所以方向必须是 **View 把 `CurvePlot.Plot` 交给 VM**（本仓库走 `CurveViewModel.AttachPlot(plot)`）。教训：**反射只能看出"属性存在"，看不出"可写"** —— 我先把签名打出来仍踩了，最终是靠**真编译**才发现的 |
+| 38 | ScottPlot 流式绘图的三个坑 | ① 用 `Plot.Add.DataStreamerXY(capacity)`：内部是**定长环形缓冲**，超容量自动淘汰最旧点，"滚动窗口固定点数"不用自己维护队列（本次离线实测：容量 300、喂 350 点 → 左端恰好是第 50 个点，截断正确）。② **`DataStreamerXY` 自己没有 `Clear()`** → 清空只能 `Plot.Remove(plottable)` 后重建；**别用 `Plot.Clear()`**，那会把图例等一起清掉。③ 多系列必须把每个 streamer 的 `ManageAxisLimits = false`，由 VM **统一设轴**，否则多条曲线各自改同一个轴互相打架（最后一个赢，画面乱跳）。另外 `Plot.Add` 上的方法名**不带 `Add` 前缀**（是 `Plot.Add.Scatter(...)` 而非 `AddScatter(...)`，按前缀过滤搜不到） |
+| 39 | **`Append` 里少一个 `!`：曲线全空白 + 潜在空引用崩溃** | `CurveViewModel.Append` 原本写成 `if (_series.TryGetValue(...)) return;`（少了 `!`）→ 属于当前设备的样本**全被 return 掉**，曲线一条都画不出来（不崩，只是空白，最难查的那种）。更糟的是：一旦有第二台设备在采集，它的 Id 不在字典里 → `TryGetValue` 返回 false → 落到 `streamer.Add(...)`，而 `streamer` 是 **null** → UI 线程 NRE。**它的指纹就在编译器警告里**：`warning CS8602: 解引用可能出现空引用`（4 条里有 2 条指这行）。教训：**别把"能编译"当成"没问题"，null 相关的警告要逐条看** |
+| 40 | **受限沙箱下 14 条测试假失败（看起来极像代码回归）** | 现象：`Total: 209, Failed: 14`，全部是 `JsonDeviceConfigStoreTests`，异常一律 `System.UnauthorizedAccessException : Access to the path 'C:\Users\...\AppData\Local\Temp\dm-store-xxxx' is denied`（栈顶 `Directory.CreateDirectory`，行号一致）。**不是代码问题** —— 该测试类在构造函数里用 `Path.GetTempPath()` 建独立临时目录，而受限沙箱**不允许写工作区外**，于是每条测试的 ctor 都炸。**修法**：跑测试前把 `TMP`/`TEMP` 指到工作区内（`$env:TMP = "$root\.cache\tmp"`）。**排查心法**：14 条失败若全是同一个异常类型 + 同一行，先怀疑**环境**而不是逻辑；真要验回归，把同一批测试在有权限的环境/VS 里再跑一遍 |
 
 ---
 
@@ -327,11 +336,40 @@ $env:SIMULATOR_E2E_PORT = 'COM9'               # 可选，默认 COM9
 > 现象很像"读不到数据"，实际是读错了寄存器区。调试时这是第一优先要查的点。
 > 另外注意：本机 VSPD **默认只建了 COM9↔COM10 一对**，第二对 COM11↔COM12 需要手工建。
 
-### 8.3 后续待办
+### 8.3 已通过的桌面验收（2026-09-26 晚，D18）
 
-1. **录屏/截图**（D24~D25）—— 这次验收过程建议补录一段，比截图更有说服力。
-2. **联网还原 ScottPlot.WPF**（D18）—— 本机 NuGet 缓存里没有，需在 VS 里联网还原。
+**证据说明（与 8.1/8.2 不同）**：这一轮**没有运行日志可佐证** —— `src/DeviceMonitor.App/bin/Debug/net8.0-windows/`
+下既没有 `logs/` 也没有 `devices.json`（该目录只有 `19:07` 的构建产物），全仓当天仅构建产物与 `.vs` 缓存有变动。
+所以本轮结论记为**「用户人工确认」**，不含日志旁证。
+
+**离线验证（可复现，不依赖 GUI）**：用一个一次性探针直接跑 `CurveViewModel` 的数据通路
+（`Plot` 是**纯模型**，`WpfPlot` 只是渲染外壳，所以曲线逻辑可以离线验证）：
+
+| 验证项 | 结论 | 实测 |
+|---|---|---|
+| 建系列 | ✅ | `AttachPlot` + `SelectDevice` 后 `SeriesCount = 6`（该设备 6 个启用点位） |
+| **滚动窗口截断** | ✅ | 每系列喂 350 点（容量 300）→ 左端 X 恰为第 50 个点、右端为第 349 个点，旧点被正确淘汰 |
+| 时间轴时区 | ✅ | 样本 `Utc` 19:00 → X 轴显示次日 03:00（本地），`ToLocalTime()` 生效 |
+| **批内不重绘** | ✅ | 2100 次 `Append` 触发 **0 次**重绘，`EndBatch` 仅 1 次（另有 `AttachPlot`/`SelectDevice` 各 1 次，属建系列时的一次性） |
+| 切设备隔离 | ✅ | 切到另一台设备 → `SeriesCount = 2`；再喂一条属于旧设备的样本**不抛异常**（正是坑 #39 那个 `!` 的反证） |
+| 清空 | ✅ | `Clear()` 后重建 6 个空系列 |
+
+**用户确认（人工，本轮无日志佐证）**：6 条曲线随轮询连续滚动、切左侧设备曲线跟着换、
+清空数据曲线同清、右上角图例显示 6 个点位名且颜色与曲线对应、坐标轴跟随、关闭窗口无异常。
+
+> 已知取舍（**不是缺陷**）：**单 Y 轴**。该设备 6 个点位量纲虽不同（℃/kPa/m³/h/mm/V/A），
+> 但数值都在 70~380，同图可看；将来若加一个 0~65535 的点位，其余曲线会被压成平线 ——
+> 到时再考虑"按可见曲线自动缩放 Y"或"每系列独立轴"。
+> 另一处取舍：**曲线只画左侧选中的设备**（切设备即切曲线），没做"表格里勾选任意系列"，属打磨项。
+
+### 8.4 后续待办
+
+1. **录屏/截图**（D24~D25）—— 建议补录一段**曲线滚动**的过程，比静态截图有说服力。
+2. ~~联网还原 ScottPlot.WPF（D18）~~ ✅ 已完成（2026-09-26，学员在 VS 里联网还原，包已进全局缓存）。
 3. **真实硬件可选加分**：USB 转 485 + 温控表/PLC 替换模拟器。
+4. **`devices.json` 位于 `bin/` 下**：清 bin/obj 会连它一起删掉，App 下次启动会重新落一份内置演示设备。
+   想留住当前配置（COM11 ↔ COM12 那台、6 个 FC04 点位）**先拷出来**。
+5. **坑 #26 的更正已写进文档，但代码注释里那三处错话还没改**（`App.xaml.cs` / `ProbeDeviceChannel.cs` / `DeviceManager.cs`）。
 
 ---
 

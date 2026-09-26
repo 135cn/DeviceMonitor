@@ -40,7 +40,7 @@ DeviceMonitor.sln                      # 解决方案（传统 sln 格式，VS 2
 
 ## 当前进度
 
-**已打通 D1~D17：协议层 → 通道层 → 采集服务 → 端到端链路 → WPF 界面 + 设备配置持久化 + 实时数据表，全部可跑。**
+**已打通 D1~D18：协议层 → 通道层 → 采集服务 → 端到端链路 → WPF 界面 + 设备配置持久化 + 实时数据表 + 实时曲线，全部可跑。**
 
 | 模块 | 状态 |
 |---|---|
@@ -59,13 +59,14 @@ DeviceMonitor.sln                      # 解决方案（传统 sln 格式，VS 2
 | DI 容器 + MVVM（CommunityToolkit.Mvvm）+ 主窗口实时数据表 | ✅ 完成（D15，桌面验收已过） |
 | `Services/JsonDeviceConfigStore`（`devices.json` 持久化）+ 设备增删改窗口 | ✅ 完成（D16，桌面验收已过） |
 | 实时数据表：在线状态圆点 + 报警灯 + 数值列格式化（`AlarmLimits` 限值判定） | ✅ 完成（D17，桌面验收已过） |
-| 报警入库 / SQLite / Excel / 实时曲线 | ⛔ 未开始（D18~D28） |
+| 实时曲线：`ScottPlot.WPF` + 滚动窗口（每系列定长 300 点）+ 复用主 VM 的 150ms 节流 | ✅ 完成（D18，桌面验收已过） |
+| 报警入库 / SQLite / Excel | ⛔ 未开始（D19~D28） |
 
-> **待做清单**：ScottPlot 实时曲线（D18）、`history.db` 批量落库（D19）、
+> **待做清单**：`history.db` 批量落库（D19）、
 > 历史查询与曲线回放（D20）、上下限报警含死区（D21）、ClosedXML 报表导出（D22）、打磨与录屏（D23~D28）。
 >
 > 技术栈引入情况：**CommunityToolkit.Mvvm、Microsoft.Extensions.DependencyInjection、NLog 已引入**；
-> `Microsoft.Data.Sqlite`、`ClosedXML` 尚未引入；`ScottPlot` 已加（D18 需换成 `ScottPlot.WPF`）。
+> `Microsoft.Data.Sqlite`、`ClosedXML` 尚未引入；绘图库已按 D18 要求换成 **`ScottPlot.WPF`**。
 
 ## 环境要求
 
@@ -83,11 +84,12 @@ dotnet test  tests/DeviceMonitor.Core.Tests/DeviceMonitor.Core.Tests.csproj   # 
 测试框架：**xunit v3 + Microsoft.Testing.Platform**（进程内运行，不依赖 VSTest testhost；
 命令行 `dotnet test` 可用，较新的 VS 2022 也能在测试资源管理器中直接发现）。
 
-当前规模：**14 个测试文件、200 个用例、0 失败**（其中 3 个端到端集成用例默认 Skip，见下）。
+当前规模：**15 个测试文件、209 个用例、0 失败**（其中 3 个端到端集成用例默认 Skip，见下）。
 覆盖范围：CRC 已知向量、组帧逐字节比对、响应解析（正常 / 异常码 / 坏 CRC / 短帧 / 粘包）、
 `FrameAssembler` 半包与失步重同步、从站读写的异常码与地址过滤、主从对拍、
 `CollectorService` 的轮询与「连续超时 → 离线 → 自动恢复」状态机、`SerialChannel` 异常映射与虚拟串口回环收发、
 配置校验器（端口/地址/数量越界、点位全禁用、Id 与寄存器范围重叠）、
+限值判定（`AlarmLimits`，含"压线不算越限"的边界）、
 `devices.json` 往返与**跨次启动 Id 稳定性**、启动自检通道与通道工厂热替换。
 
 依赖虚拟串口的用例（`SerialChannelTests` / `SerialChannelLoopbackTests`）在**本机没有该端口时自动 Skip**，
@@ -111,8 +113,9 @@ dotnet restore src/DeviceMonitor.Core/DeviceMonitor.Core.csproj -p:NuGetAudit=fa
 dotnet build DeviceMonitor.sln --no-restore
 ```
 
-> `ScottPlot`（D18 实时曲线用）已作为 `PackageReference` 加在 `DeviceMonitor.App` 上（5.1.59）。
-> 绘图库只有界面层需要，Core / Simulator / MasterConsole / Tests 都不引用它。
+> **`ScottPlot.WPF`**（D18 实时曲线用，5.1.59）已作为 `PackageReference` 加在 `DeviceMonitor.App` 上，
+> 并已还原进本机 NuGet 缓存，离线可构建。绘图库只有界面层需要，
+> Core / Simulator / MasterConsole / Tests 都不引用它。
 
 ## 演示方式
 
@@ -133,7 +136,12 @@ dotnet build DeviceMonitor.sln --no-restore
    停掉模拟器会看到连续错误累加并判定离线，重新启动模拟器能看到自动重连恢复。
 
 4. 模拟器运行中按 `1` 把点位 0 强制置为 60000（演示报警超限），按 `0` 恢复自动波形。
-5. 多设备演示：再建一对 `COM11 <-> COM12`，用 `--port COM12 --slave 2` 起第二个模拟器实例。
+5. 多设备演示：再建一对 `COM11 <-> COM12`，在 COM12 上再起一个模拟器实例
+   —— **从站地址要与界面里那台设备的 `SlaveId` 一致**（随仓库的演示配置里「模拟器设备2」用的是 `COM11` / Slave 1）。
+
+> ★★ **新建点位时功能码要选 FC04（输入寄存器）**，否则数值永远静止。
+> 模拟器只把**波形**写进输入寄存器；保持寄存器（FC03）只在启动时赋一次 `i*10` 且永不更新，
+> 用 FC03 的点位读数永远是 `0,10,20,30,40,50`。现象极像"采不到数据"，实际只是读错了寄存器区。
 
 > ⚠️ 模拟器运行期间**独占 COM10**。此时跑全量 `dotnet test`，需要两个端口都空闲的回环用例会失败。
 > 要跑全量测试请先停掉模拟器。
@@ -150,9 +158,9 @@ $env:SIMULATOR_E2E = '1'; dotnet test tests/DeviceMonitor.Core.Tests
 
 ## 后续开发顺序
 
-按 `docs/DeviceMonitor-Design.md` §9 的 28 天清单推进（**D1~D17 已完成**）：
+按 `docs/DeviceMonitor-Design.md` §9 的 28 天清单推进（**D1~D18 已完成**）：
 
 ```
-ScottPlot 曲线(D18) → SQLite 批量落库(D19) → 历史查询与曲线回放(D20)
+SQLite 批量落库(D19) → 历史查询与曲线回放(D20)
 → 报警与死区(D21) → Excel 报表(D22) → 打磨 / 录屏 / README(D23~D28)
 ```
