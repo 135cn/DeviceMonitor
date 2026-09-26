@@ -57,7 +57,8 @@ DeviceMonitor.sln
 | D16 设备编辑窗口 + devices.json | ✅ 代码已全部落库（10 个提交），review 通过：清 obj 后**全量干净重建 0 警告 0 错误** / 200 测试全绿（3 skip）/ 端到端链路实测 / **桌面验收已通过**（2026-09-23，证据见第八节） |
 | D17 实时数据表：在线圆点 + 报警灯 + 列格式化 | ✅ 代码 3 个提交（`01a04f2` / `a1efa8b` / `312caed`）；**桌面验收已通过**（2026-09-24，证据见第八节） |
 | D18 实时曲线（ScottPlot.WPF；滚动窗口 + 复用主 VM 的 150ms 节流） | ✅ 代码 1 个提交（`f091d34`）；**桌面验收已通过**（2026-09-26，见第八节 8.3） |
-| D19~D28 SQLite / 历史回放 / 报警 / Excel / 录屏 / README / 简历 | ⬜ |
+| D19 SQLite 批量落库（通道扇出 + 攒批 200 条/5s） | ✅ 代码 2 个提交（`aa69318` Core / `91f179b` App 接线）；**桌面验收已通过**（2026-09-26 晚，证据见第八节 8.4） |
+| D20~D28 历史回放 / 报警 / Excel / 录屏 / README / 简历 | ⬜ |
 
 ---
 
@@ -79,6 +80,16 @@ dotnet build DeviceMonitor.sln -c Debug --no-restore -p:NuGetAudit=false -m:1
 Remove-Item -Recurse -Force src\*\obj, src\*\bin, tests\*\obj, tests\*\bin, tools\*\obj, tools\*\bin
 dotnet restore DeviceMonitor.sln -p:NuGetAudit=false
 dotnet build DeviceMonitor.sln -c Debug --no-restore -p:NuGetAudit=false -m:1 -v:n
+
+# ⚠️ 沙箱对批量删除有保护（rm -rf 多个目录会被拦）。等价替代：给 build 加 --no-incremental
+#    —— 同样强制全部重新编译、让分析器跑满，且不触发删除拦截：
+dotnet build DeviceMonitor.sln -m:1 --no-incremental --no-restore -p:NuGetAudit=false -v:n
+
+# ⚠️ 2026-09-26 起本机沙箱里 apphost 启动失效（任何 dotnet run 都报
+#    "Failed to load the dll from [...hostfxr.dll], HRESULT: 0x80070005"）。
+#    绕开办法：先 build，再用 dotnet exec 直接跑 dll：
+#    dotnet exec tests\DeviceMonitor.Core.Tests\bin\Debug\net8.0\DeviceMonitor.Core.Tests.dll
+#    dotnet exec src\DeviceMonitor.Simulator\bin\Debug\net8.0\DeviceMonitor.Simulator.dll --port COM12 --slave 1 --points 6
 
 # 跑测试（**不要用 dotnet test**，见坑 #3）
 # ⚠️ 受限沙箱下必须先把 TMP 指到工作区内，否则 14 条测试会假失败（坑 #40）
@@ -186,6 +197,8 @@ $env:SIMULATOR_E2E_PORT = 'COM9'               # 可选，默认 COM9
 | 38 | ScottPlot 流式绘图的三个坑 | ① 用 `Plot.Add.DataStreamerXY(capacity)`：内部是**定长环形缓冲**，超容量自动淘汰最旧点，"滚动窗口固定点数"不用自己维护队列（本次离线实测：容量 300、喂 350 点 → 左端恰好是第 50 个点，截断正确）。② **`DataStreamerXY` 自己没有 `Clear()`** → 清空只能 `Plot.Remove(plottable)` 后重建；**别用 `Plot.Clear()`**，那会把图例等一起清掉。③ 多系列必须把每个 streamer 的 `ManageAxisLimits = false`，由 VM **统一设轴**，否则多条曲线各自改同一个轴互相打架（最后一个赢，画面乱跳）。另外 `Plot.Add` 上的方法名**不带 `Add` 前缀**（是 `Plot.Add.Scatter(...)` 而非 `AddScatter(...)`，按前缀过滤搜不到） |
 | 39 | **`Append` 里少一个 `!`：曲线全空白 + 潜在空引用崩溃** | `CurveViewModel.Append` 原本写成 `if (_series.TryGetValue(...)) return;`（少了 `!`）→ 属于当前设备的样本**全被 return 掉**，曲线一条都画不出来（不崩，只是空白，最难查的那种）。更糟的是：一旦有第二台设备在采集，它的 Id 不在字典里 → `TryGetValue` 返回 false → 落到 `streamer.Add(...)`，而 `streamer` 是 **null** → UI 线程 NRE。**它的指纹就在编译器警告里**：`warning CS8602: 解引用可能出现空引用`（4 条里有 2 条指这行）。教训：**别把"能编译"当成"没问题"，null 相关的警告要逐条看** |
 | 40 | **受限沙箱下 14 条测试假失败（看起来极像代码回归）** | 现象：`Total: 209, Failed: 14`，全部是 `JsonDeviceConfigStoreTests`，异常一律 `System.UnauthorizedAccessException : Access to the path 'C:\Users\...\AppData\Local\Temp\dm-store-xxxx' is denied`（栈顶 `Directory.CreateDirectory`，行号一致）。**不是代码问题** —— 该测试类在构造函数里用 `Path.GetTempPath()` 建独立临时目录，而受限沙箱**不允许写工作区外**，于是每条测试的 ctor 都炸。**修法**：跑测试前把 `TMP`/`TEMP` 指到工作区内（`$env:TMP = "$root\.cache\tmp"`）。**排查心法**：14 条失败若全是同一个异常类型 + 同一行，先怀疑**环境**而不是逻辑；真要验回归，把同一批测试在有权限的环境/VS 里再跑一遍 |
+| 41 | **DI 注册写错，编译器一声不响，软件双击没反应** | D19 接线时把第 49 行写成 `services.AddSingleton<IHistoryStore>();`（本该是 `AddSingleton<HistoryService>();`）。它有两个后果：① 实现类 `HistoryService` **根本没注册**；② 这一行**覆盖**掉上面那个带工厂的 `IHistoryStore` 注册。**实测复现**：`BuildServiceProvider()` 直接抛 `System.ArgumentException: Cannot instantiate implementation type 'IHistoryStore' for service type 'IHistoryStore'` —— 也就是 `OnStartup` 里建容器那一行就炸，界面根本出不来，而**编译、静态检查全都通过**。教训：**改过 DI 注册就必须真解析一次**（跑起来，或写个只调 `GetRequiredService` 的探针）；`AddSingleton<TService>()` 不带工厂时要求 `TService` 是**可实例化的具体类**，写成接口就是给自己埋雷 |
+| 42 | **SQLite 查询把 `DateTime` 直接绑成参数 → 区间查询恒返回 0 条** | `QueryAsync` 里 `cmd.Parameters.AddWithValue("$from", fromUtc)` 少了 `ToIso(...)` 包装。实测：`AddWithValue(DateTime)` 会绑定成 `"2026-09-26 11:00:00"`（**空格分隔、无 Z**），而库里存的是 `"2026-09-26T11:00:00.000Z"` —— 第 11 个字符 `' '`(0x20) < `'T'`(0x54)，于是 `ts >= $from` 恒真、**`ts <= $to` 恒假** → 一条都查不出来。**这个 bug 特别阴**：写入正常、`CountAsync` 正常、"停止采集后库里有数据"这条验收也照样通过（D19 验收确实过了），只有真正做**按时间区间查询**（D20）才会暴露，那时很容易先去怀疑 SQL、索引、时区。**规矩**：时间列存的是**定长 ISO8601 文本**，那么查询参数也必须走同一个 `ToIso()`，别让 ADO.NET 去替你猜格式 |
 
 ---
 
@@ -362,13 +375,51 @@ $env:SIMULATOR_E2E_PORT = 'COM9'               # 可选，默认 COM9
 > 到时再考虑"按可见曲线自动缩放 Y"或"每系列独立轴"。
 > 另一处取舍：**曲线只画左侧选中的设备**（切设备即切曲线），没做"表格里勾选任意系列"，属打磨项。
 
-### 8.4 后续待办
+### 8.4 已通过的桌面验收（2026-09-26 晚，D19）
+
+**证据（这次是硬证据：App 自己产出的库 + 日志）**
+- `src/DeviceMonitor.App/bin/Debug/net8.0-windows/history.db`（App 生成，155 KB）
+- `src/DeviceMonitor.App/bin/Debug/net8.0-windows/logs/devicemonitor-2026-09-26.log`
+
+日志里的两轮采集（设备「模拟器设备」COM9/Slave 1、6 个点位、轮询 1000ms）：
+
+| 时间 | 事件 |
+|---|---|
+| 21:49:04 | `SqliteHistoryStore：历史库已就绪` + `HistoryService：历史落库已启动：批量 200 条 / 间隔 00:00:05` |
+| 21:49:08 | 采集启动 |
+| 21:49:22 | 采集停止 |
+| 21:51:04 / 21:51:08 | 再次启停 |
+| 21:51:12 | `DeviceManager 已释放` → `历史落库已停止：累计 **108 行** / **5 个事务**` → `历史库已关闭` |
+| 22:01:45 | 第二次启动 App：历史库就绪 + 落库已启动（**复用了同一个库文件**） |
+| 22:01:51 → 22:03:06 | 采集启停各两次 |
+| 22:03:08 | `DeviceManager 已释放` → `历史落库已停止：累计 **432 行** / **15 个事务**` → `历史库已关闭` |
+
+**用 Python 的 `sqlite3`（与 Microsoft.Data.Sqlite 完全不同的实现）独立复核库文件**：
+
+| 验证项 | 结果 |
+|---|---|
+| 表 / 索引 / 模式 | `history(id,ts,device_id,point_id,value)`、`idx_history_time` + `idx_history_point`、`journal_mode=wal` |
+| 总行数 | **540** = 108（第一轮）+ 432（第二轮），两轮数据都在同一个库里 ✅ |
+| 每点位行数 | **6 个点位各 90 行**（= 540 / 6，完全均匀）✅ |
+| 时间范围（UTC） | `2026-09-26T13:49:08.913Z` ~ `2026-09-26T14:03:03.329Z`（= 本地 21:49 ~ 22:03）✅ |
+| ★ **零丢样本** | 第一轮采集 14s + 4s = 18s → 18 条/点位 × 6 = **108 行**，与日志完全吻合；第二轮 69s + 4s = 73s，日志里有 1 次容忍范围内的轮询失败 → 72 条/点位 × 6 = **432 行**，**一条不差** |
+| 关闭是否干净 | 无 `-wal`/`-shm` 残留（说明连接正常关闭并 checkpoint）✅ |
+
+> 整轮日志**零 ERROR**，只有 1 条 `WARN 轮询失败（第 1 次，容忍范围内）`（22:03:04，模拟器侧短暂不可用），
+> 属预期现象。
+
+**★ 这轮验收顺带证明了一件事**：D19 的验收标准（"停止采集后 history.db 有数据"）**对坑 #42 完全没有鉴别力** ——
+当时 `QueryAsync` 的时间参数还是错的（按区间查永远返回 0 条），但写入、`CountAsync`、
+本次这 540 行数据全都正常。**只有 D20 真正做区间查询时才会暴露。**
+所以新增的 `SqliteHistoryStoreTests` 里那条"按设备+点位+区间查回"的用例是必需的，不能只验"库里有数据"。
+
+### 8.5 后续待办
 
 1. **录屏/截图**（D24~D25）—— 建议补录一段**曲线滚动**的过程，比静态截图有说服力。
 2. ~~联网还原 ScottPlot.WPF（D18）~~ ✅ 已完成（2026-09-26，学员在 VS 里联网还原，包已进全局缓存）。
 3. **真实硬件可选加分**：USB 转 485 + 温控表/PLC 替换模拟器。
-4. **`devices.json` 位于 `bin/` 下**：清 bin/obj 会连它一起删掉，App 下次启动会重新落一份内置演示设备。
-   想留住当前配置（COM11 ↔ COM12 那台、6 个 FC04 点位）**先拷出来**。
+4. **`devices.json` 和 `history.db` 都在 `bin/` 下**：清 bin/obj 会连两者一起删掉
+   （App 下次启动会重新落一份内置演示设备、并新建空的历史库）。想留住先拷出来。
 5. **坑 #26 的更正已写进文档，但代码注释里那三处错话还没改**（`App.xaml.cs` / `ProbeDeviceChannel.cs` / `DeviceManager.cs`）。
 
 ---
