@@ -47,11 +47,7 @@ public sealed class SqliteHistoryStore : IHistoryStore
         if (_connection is not null)
             return;                     // 幂等：已经建好就直接返回
 
-        SqliteConnection connection = new(new SqliteConnectionStringBuilder
-        {
-            DataSource = _dbPath,
-            Mode = SqliteOpenMode.ReadWriteCreate,
-        }.ToString());
+        SqliteConnection connection = new(BuildConnectionString());
 
         try
         {
@@ -153,7 +149,7 @@ public sealed class SqliteHistoryStore : IHistoryStore
         int limit = 100_000,
         CancellationToken cancellationToken = default)
     {
-        SqliteConnection connection = EnsureInitialized();
+        await using SqliteConnection connection = await OpenReadConnectionAsync(cancellationToken).ConfigureAwait(false);
 
         // ★ 点位过滤写成两套 SQL，而不是 `($pt IS NULL OR point_id = $pt)`：
         //   后者会让 SQLite 用不上 idx_history_point（带参数的 OR 无法在编译期消解）。
@@ -194,7 +190,7 @@ public sealed class SqliteHistoryStore : IHistoryStore
 
     public async Task<long> CountAsync(string? deviceId = null, CancellationToken cancellationToken = default)
     {
-        SqliteConnection connection = EnsureInitialized();
+        await using SqliteConnection connection = await OpenReadConnectionAsync(cancellationToken).ConfigureAwait(false);
 
         await using SqliteCommand cmd = connection.CreateCommand();
         bool byDevice = !string.IsNullOrWhiteSpace(deviceId);
@@ -233,6 +229,42 @@ public sealed class SqliteHistoryStore : IHistoryStore
     private SqliteConnection EnsureInitialized() =>
         _connection ?? throw new InvalidOperationException(
             $"历史库尚未初始化（{_dbPath}），请先调用 {nameof(InitializeAsync)}。");
+
+    private string BuildConnectionString() => new SqliteConnectionStringBuilder
+    {
+        DataSource = _dbPath,
+        Mode = SqliteOpenMode.ReadWriteCreate,
+    }.ToString();
+
+    /// <summary>
+    /// 查询用**独立短连接**（D20）。
+    ///
+    /// ★ 为什么不能复用写入那条长连接：ADO.NET 连接**不是线程安全的**，而历史查询窗天然会在
+    ///   "采集正在写库"的同时读同一个库。实测（写 60 轮 + 读 60 轮并发）会抛出
+    ///   <c>InvalidOperationException: The transaction object is not associated with the same
+    ///   connection object as this command</c> —— 而且它**只在写入事务进行中的那一瞬**命中，
+    ///   属于最难查的偶发故障。
+    ///
+    /// 分开之后的组合是：写用长连接（配合 <c>_writeLock</c> 串行化），读每次开一条短连接；
+    /// WAL 模式下读不阻塞写 —— 这正是当初选 WAL 的意义。
+    /// Microsoft.Data.Sqlite 默认开启连接池，"每次新建"实际是复用池里的物理连接，开销极小。
+    /// </summary>
+    private async Task<SqliteConnection> OpenReadConnectionAsync(CancellationToken cancellationToken)
+    {
+        EnsureInitialized();   // 表都还没建就查，一定是调用方的顺序错了
+
+        SqliteConnection connection = new(BuildConnectionString());
+
+        await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+        // busy_timeout 是**每连接**的 PRAGMA（不像 journal_mode 会写进库文件），查询连接也要设，
+        // 否则撞上写入 / WAL checkpoint 的瞬间会直接抛 database is locked。
+        await using SqliteCommand pragma = connection.CreateCommand();
+        pragma.CommandText = "PRAGMA busy_timeout = 5000;";
+        await pragma.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+
+        return connection;
+    }
 
     /// <summary>UTC → 库里的定长 ISO8601 文本。</summary>
     private static string ToIso(DateTime value) =>

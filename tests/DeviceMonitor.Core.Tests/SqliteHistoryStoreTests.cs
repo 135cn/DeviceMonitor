@@ -210,4 +210,67 @@ public class SqliteHistoryStoreTests : IDisposable
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => store.CountAsync(null, TestContext.Current.CancellationToken));
     }
+
+    [Fact]
+    public async Task 采集写入与历史查询并发_互不干扰()
+    {
+        await using var store = new SqliteHistoryStore(_dbPath);
+        await store.InitializeAsync(TestContext.Current.CancellationToken);
+
+        await store.WriteBatchAsync(
+            [.. Enumerable.Range(0, 200).Select(i => Sample("dev-A", "pt-1", T0.AddMilliseconds(i * 10), i))],
+            TestContext.Current.CancellationToken);
+
+        var errors = new List<string>();
+        int writeErrors = 0, readErrors = 0;
+
+        // 模拟真实场景：采集线程正在攒批写库的同时，历史查询窗在读同一个库。
+        //
+        // ⚠️ 这条用例是**冒烟**性质，别指望它能证明"连接已分离"：
+        //    实测过——把查询改回共用写连接后，40×20 的参数只有 2/5 命中，
+        //    而加到 150×100 反而 0/5（竞态的命中窗口与参数并非单调）。
+        //    真正可靠的依据是两条：① 修之前那次实测复现（60 轮里抛 1 次
+        //    InvalidOperationException: The transaction object is not associated with the same
+        //    connection object as this command）；② "ADO.NET 连接不是线程安全的"这条硬约束。
+        //    保留它的价值在于：一旦有人把查询又接回写连接并触发更明显的冲突，这里会先响。
+        Task writer = Task.Run(async () =>
+        {
+            for (int round = 0; round < 60; round++)
+            {
+                try
+                {
+                    await store.WriteBatchAsync(
+                        [.. Enumerable.Range(0, 50).Select(i => Sample("dev-A", "pt-1", T0.AddMilliseconds(round * 50 + i), round + i))],
+                        CancellationToken.None);
+                }
+                catch (Exception ex)
+                {
+                    Interlocked.Increment(ref writeErrors);
+                    lock (errors) errors.Add($"写 {ex.GetType().Name}: {ex.Message}");
+                }
+            }
+        }, TestContext.Current.CancellationToken);
+
+        Task reader = Task.Run(async () =>
+        {
+            for (int round = 0; round < 120; round++)
+            {
+                try
+                {
+                    await store.QueryAsync("dev-A", "pt-1", T0.AddHours(-1), T0.AddHours(1), 1_000, CancellationToken.None);
+                    await store.CountAsync(null, CancellationToken.None);
+                }
+                catch (Exception ex)
+                {
+                    Interlocked.Increment(ref readErrors);
+                    lock (errors) errors.Add($"读 {ex.GetType().Name}: {ex.Message}");
+                }
+            }
+        }, TestContext.Current.CancellationToken);
+
+        await Task.WhenAll(writer, reader);
+
+        Assert.True(readErrors == 0 && writeErrors == 0,
+            $"并发读写出现异常（读 {readErrors} 次 / 写 {writeErrors} 次）：{string.Join("; ", errors)}");
+    }
 }
