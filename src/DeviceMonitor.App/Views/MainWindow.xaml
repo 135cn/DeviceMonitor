@@ -37,7 +37,7 @@
                 <Button Content="删除设备" Command="{Binding RemoveDeviceCommand}"/>
                 <Separator/>
                 <Button Content="清空数据" Command="{Binding ClearPointsCommand}"/>
-                <Button Content="历史查询..." IsEnabled="False" ToolTip="TODO D20"/>
+                <Button Content="历史查询..." Command="{Binding OpenHistoryCommand}"/>
                 <Button Content="导出报表..." IsEnabled="False" ToolTip="TODO D22"/>
             </ToolBar>
         </ToolBarTray>

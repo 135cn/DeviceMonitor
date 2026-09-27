@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DeviceMonitor.Core.Channels;
+using DeviceMonitor.Core.DataAccess;
 using DeviceMonitor.Core.Models;
 using DeviceMonitor.Core.Services;
 using System.Collections.Concurrent;
@@ -25,6 +26,7 @@ namespace DeviceMonitor.App.ViewModels
 
         private readonly IDeviceConfigStore _configStore;
         private readonly DeviceManager _deviceManager;
+        private readonly IHistoryStore _historyStore;
         private readonly Dispatcher _dispatcher;
 
         /// <summary>待刷新样本：key = (设备Id, 点位Id)，同一测点只留最新值。</summary>
@@ -46,10 +48,11 @@ namespace DeviceMonitor.App.ViewModels
         private int _pendingSampleCount;
 
 
-        public MainViewModel(DeviceManager deviceManager, IDeviceConfigStore configStore)
+        public MainViewModel(DeviceManager deviceManager, IDeviceConfigStore configStore, IHistoryStore historyStore)
         {
             _configStore = configStore;
             _deviceManager = deviceManager;
+            _historyStore = historyStore;
             _dispatcher = Application.Current.Dispatcher;
 
             // 1) 按设备构建 ViewModel 与点位索引
@@ -167,6 +170,19 @@ namespace DeviceMonitor.App.ViewModels
             Curve.Clear();
             ReceivedSampleCount = 0;
             LastRefreshText = "--:--:--";
+        }
+
+        /// <summary>
+        /// 打开历史查询窗。
+        /// 设备列表取当前配置的**快照** —— 窗口打开期间改配置也不会影响这一次查询的上下文。
+        /// </summary>
+        [RelayCommand]
+        private void OpenHistory()
+        {
+            var viewModel = new HistoryViewModel(_historyStore, [.. _deviceManager.Devices.Select(d => d.Config)]);
+            var window = new Views.HistoryWindow(viewModel) { Owner = Application.Current.MainWindow };
+
+            window.ShowDialog();// 模态：一次专心看一段历史
         }
 
         private bool CanEditDevices => !IsCollecting;
