@@ -31,18 +31,18 @@ public static class ModbusRtuCodec
             throw new ArgumentOutOfRangeException(
                 nameof(slaveId), slaveId, "从站地址必须在 1~247 之间（0 为广播、248~255 保留）。");
         }
-        if(functionCode is not(3 or 4))
+        if (functionCode is not (3 or 4))
         {
             throw new ArgumentOutOfRangeException(
                 nameof(functionCode), functionCode, "v1 仅支持读保持寄存器(0x03)与读输入寄存器(0x04)。");
         }
-        if(quantity is < 1 or > MaxReadQuantity)
+        if (quantity is < 1 or > MaxReadQuantity)
         {
             throw new ArgumentOutOfRangeException(
                 nameof(quantity), quantity, $"寄存器数量必须在 1~{MaxReadQuantity} 之间。");
         }
 
-        if((int)startAddress + quantity - 1 >ushort.MaxValue )
+        if ((int)startAddress + quantity - 1 > ushort.MaxValue)
         {
             throw new ArgumentOutOfRangeException(
                 nameof(startAddress), startAddress, "起始地址 + 数量越过了寄存器地址空间上限 65535。");
@@ -154,7 +154,7 @@ public static class ModbusRtuCodec
             return false;
 
         // CRC 归零性质：完整合法帧再算一次 CRC 结果为 0
-        if (Crc16.Compute(frame)  != 0)
+        if (Crc16.Compute(frame) != 0)
             return false;
 
         byte slaveId = frame[0];
@@ -177,7 +177,7 @@ public static class ModbusRtuCodec
 
             // ⚠️ 06 的第 5~6 字节是"要写入的值"，不是数量！这里统一成 Quantity=1 + Data=[值]
             case 0x06:
-                if(frame.Length != 8)
+                if (frame.Length != 8)
                     return false;
 
                 request = new ModbusRequest(
@@ -190,18 +190,18 @@ public static class ModbusRtuCodec
             // 10：地址 + 功能码 + 起始(2) + 数量(2) + 字节数(1) + 数据(2N) + CRC(2)
             case 0x10:
                 {
-                    if(frame.Length < 9)
+                    if (frame.Length < 9)
                         return false;
 
                     int byteCount = frame[6];
-                    if(byteCount== 0 || byteCount % 2 != 0 || frame.Length != 9 + byteCount)
+                    if (byteCount == 0 || byteCount % 2 != 0 || frame.Length != 9 + byteCount)
                         return false;
 
                     int registerCount = byteCount / 2;
 
                     var values = new ushort[registerCount];
                     for (int i = 0; i < registerCount; i++)
-                        values[i] = (ushort)(frame[7 + i * 2]<< 8 |  frame[8 + i * 2]);
+                        values[i] = (ushort)(frame[7 + i * 2] << 8 | frame[8 + i * 2]);
 
                     request = new ModbusRequest(
                         slaveId, functionCode,
@@ -215,7 +215,7 @@ public static class ModbusRtuCodec
             default:
                 // 未知功能码：帧长规则不清楚，只取出地址与功能码，交给从站回异常码 01
                 request = new ModbusRequest(
-                    slaveId,functionCode,0,0,Array.Empty<ushort>());
+                    slaveId, functionCode, 0, 0, Array.Empty<ushort>());
                 return true;
         }
     }
@@ -225,7 +225,7 @@ public static class ModbusRtuCodec
     /// <summary>构造读响应帧（从站侧）：地址 + 功能码 + 字节数(2N) + 数据(高字节在前) + CRC。</summary>
     public static byte[] BuildReadResponse(byte slaveId, byte functionCode, ReadOnlySpan<ushort> values)
     {
-        if(values.Length is 0 or > MaxReadQuantity)
+        if (values.Length is 0 or > MaxReadQuantity)
         {
             throw new ArgumentOutOfRangeException(
                 nameof(values), values.Length, $"寄存器个数必须在 1~{MaxReadQuantity} 之间。");
@@ -262,17 +262,17 @@ public static class ModbusRtuCodec
         body[3] = (byte)(startAddress & 0xFF);
         body[4] = (byte)(valueOrQuantity >> 8);
         body[5] = (byte)(valueOrQuantity & 0xFF);
-        
-        return Crc16.AppendLittleEndian(body,Crc16.Compute(body));
+
+        return Crc16.AppendLittleEndian(body, Crc16.Compute(body));
     }
 
 
     /// <summary>构造异常响应帧（从站侧）：地址 + (功能码|0x80) + 异常码 + CRC = 5 字节。</summary>
     public static byte[] BuildExceptionResponse(byte slaveId, byte function, ModbusExceptionCode code)
     {
-        var body = new byte[] { slaveId, (byte)(function | 0x80),(byte)code  };
+        var body = new byte[] { slaveId, (byte)(function | 0x80), (byte)code };
 
-        return Crc16.AppendLittleEndian(body,Crc16.Compute(body));
+        return Crc16.AppendLittleEndian(body, Crc16.Compute(body));
     }
 
 

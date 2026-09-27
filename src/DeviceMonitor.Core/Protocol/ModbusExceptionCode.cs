@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace DeviceMonitor.Core.Protocol
+﻿namespace DeviceMonitor.Core.Protocol
 {
 
     /// <summary>Modbus 异常响应的异常码（响应帧里 功能码|0x80 后面那一个字节）。</summary>

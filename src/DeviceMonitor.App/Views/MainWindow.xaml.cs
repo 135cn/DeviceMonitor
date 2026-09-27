@@ -24,7 +24,7 @@ public partial class MainWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
-        if(_viewModels.StopAllCommand.CanExecute(null))
+        if (_viewModels.StopAllCommand.CanExecute(null))
             _viewModels.StopAllCommand.Execute(null);
         base.OnClosed(e);
     }

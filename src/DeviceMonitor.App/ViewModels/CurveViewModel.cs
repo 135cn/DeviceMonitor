@@ -80,7 +80,7 @@ namespace DeviceMonitor.App.ViewModels
         /// </summary>
         public void Append(DataSample sample)
         {
-            if(!_series.TryGetValue(sample.PointId, out DataStreamerXY? streamer))
+            if (!_series.TryGetValue(sample.PointId, out DataStreamerXY? streamer))
                 return;
 
             // ★ 必须 ToLocalTime()：DataSample.Utc 来自 DateTime.UtcNow，
@@ -94,15 +94,15 @@ namespace DeviceMonitor.App.ViewModels
         /// </summary>
         public void EndBatch()
         {
-            if(_plot is null || _series.Count == 0)
+            if (_plot is null || _series.Count == 0)
                 return;
 
             AxisLimits limits = _plot.Axes.GetDataLimits();
 
-            if(!double.IsNaN(limits.Left) && !double.IsNaN(limits.Right) && limits.Right > limits.Left)
+            if (!double.IsNaN(limits.Left) && !double.IsNaN(limits.Right) && limits.Right > limits.Left)
                 _plot.Axes.SetLimitsX(limits.Left, limits.Right);
 
-            if(!double.IsNaN(limits.Bottom) && !double.IsNaN(limits.Top))
+            if (!double.IsNaN(limits.Bottom) && !double.IsNaN(limits.Top))
             {
                 // 上下留 10% 余量，免得曲线贴着边框
                 double padding = Math.Max((limits.Top - limits.Bottom) * 0.1, 0.5);
@@ -123,7 +123,7 @@ namespace DeviceMonitor.App.ViewModels
         /// </summary>
         private void RebuildSeries()
         {
-            if(_plot is null)
+            if (_plot is null)
                 return;
 
             foreach (DataStreamerXY streamer in _series.Values)
@@ -131,10 +131,10 @@ namespace DeviceMonitor.App.ViewModels
 
             _series.Clear();
 
-            if(_currentDevice is not null)
+            if (_currentDevice is not null)
             {
                 int index = 0;
-                foreach(PointViewModel point in _currentDevice.Points)
+                foreach (PointViewModel point in _currentDevice.Points)
                 {
                     DataStreamerXY streamer = _plot.Add.DataStreamerXY(WindowPoints);
                     streamer.LineColor = Color.FromHex(Palette[index % Palette.Length]);

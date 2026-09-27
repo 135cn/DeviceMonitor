@@ -1,5 +1,4 @@
 ﻿using DeviceMonitor.Core.Models;
-using Xunit;
 
 namespace DeviceMonitor.Core.Tests;
 

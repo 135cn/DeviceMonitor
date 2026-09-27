@@ -1,12 +1,7 @@
 ﻿using DeviceMonitor.Core.Diagnostics;
 using DeviceMonitor.Core.Protocol;
 using NLog;
-using System;
-using System.Collections.Generic;
 using System.IO.Ports;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace DeviceMonitor.Simulator
 {
@@ -94,11 +89,11 @@ namespace DeviceMonitor.Simulator
 
                 assembler.Feed(buffer.AsSpan(0, count));
 
-                while(assembler.TryGetFrame(out byte[]? frame) && frame is not null)
+                while (assembler.TryGetFrame(out byte[]? frame) && frame is not null)
                 {
                     byte[]? response = _slave.HandleRequest(frame);
 
-                    if(response is null)
+                    if (response is null)
                     {
                         _ignoredFrames++;
                         Log.Debug("忽略一帧（CRC 错 / 非本从站地址）：{Frame}", Convert.ToHexString(frame));
@@ -123,7 +118,7 @@ namespace DeviceMonitor.Simulator
         {
             try
             {
-                if(_port.IsOpen)
+                if (_port.IsOpen)
                     _port.Close();
             }
             catch (IOException ex)

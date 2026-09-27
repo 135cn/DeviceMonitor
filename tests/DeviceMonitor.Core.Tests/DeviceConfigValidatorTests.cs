@@ -1,6 +1,5 @@
 using DeviceMonitor.Core.Models;
 using DeviceMonitor.Core.Validation;
-using Xunit;
 
 namespace DeviceMonitor.Core.Tests;
 
@@ -15,17 +14,17 @@ public class DeviceConfigValidatorTests
 
     private static PointConfig Point(string name, bool enabled = true, byte fc = 3,
         ushort start = 0, ushort qty = 1) => new()
-    {
-        // 显式 Id：模型默认是空串（刻意为之，见 PointConfig 注释），
-        // 不写的话多个点位会共用空 Id，被校验器判成"点位 Id 重复"。
-        Id = Guid.NewGuid().ToString("N"),
-        Name = name,
-        FunctionCode = fc,
-        StartAddress = start,
-        Quantity = qty,
-        Enabled = enabled,
-        Scale = 1,
-    };
+        {
+            // 显式 Id：模型默认是空串（刻意为之，见 PointConfig 注释），
+            // 不写的话多个点位会共用空 Id，被校验器判成"点位 Id 重复"。
+            Id = Guid.NewGuid().ToString("N"),
+            Name = name,
+            FunctionCode = fc,
+            StartAddress = start,
+            Quantity = qty,
+            Enabled = enabled,
+            Scale = 1,
+        };
 
     private static DeviceConfig Device(string name = "温控器", string port = "COM9", params PointConfig[] points) => new()
     {

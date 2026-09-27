@@ -3,7 +3,6 @@ using CommunityToolkit.Mvvm.Input;
 using DeviceMonitor.Core.Models;
 using DeviceMonitor.Core.Services;
 using System.Collections.ObjectModel;
-using System.Linq;
 
 namespace DeviceMonitor.App.ViewModels
 {
@@ -17,7 +16,7 @@ namespace DeviceMonitor.App.ViewModels
         public string Id => _handle.Config.Id;
 
         public string Name => _handle.Config.Name;
-        
+
         public string PortName => _handle.Config.PortName;
 
         public string PollIntervalText => $"{_handle.Config.PollIntervalMs} ms";
@@ -27,7 +26,7 @@ namespace DeviceMonitor.App.ViewModels
             _deviceManager = deviceManager;
             _handle = handle;
 
-            foreach(PointConfig config in handle.Config.Points.Where(p => p.Enabled))
+            foreach (PointConfig config in handle.Config.Points.Where(p => p.Enabled))
             {
                 // 传 this：点位要读设备的在线状态（表格里的圆点与"离线变灰"）
                 Points.Add(new PointViewModel(this, config));

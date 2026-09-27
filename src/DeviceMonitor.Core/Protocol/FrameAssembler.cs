@@ -183,14 +183,20 @@ public sealed class FrameAssembler
         // MasterResponse
         switch (functionCode)
         {
-            case 0x01: case 0x02: case 0x03: case 0x04:   // 第 3 个字节是字节数
+            case 0x01:
+            case 0x02:
+            case 0x03:
+            case 0x04:   // 第 3 个字节是字节数
                 if (_buffer.Count < 3)
                     return false;
 
                 expectedLength = 5 + _buffer[2];
                 return true;
 
-            case 0x05: case 0x06: case 0x0F: case 0x10:
+            case 0x05:
+            case 0x06:
+            case 0x0F:
+            case 0x10:
                 expectedLength = 8;
                 return true;
 

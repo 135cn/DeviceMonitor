@@ -44,7 +44,7 @@ namespace DeviceMonitor.Core.Services
         };
 
         /// <param name="filePath">配置文件路径；不传则用 exe 同目录的 devices.json。</param>
-        public JsonDeviceConfigStore(string? filePath = null) 
+        public JsonDeviceConfigStore(string? filePath = null)
         {
             FilePath = string.IsNullOrWhiteSpace(filePath)
                 ? Path.Combine(AppContext.BaseDirectory, "devices.json")
@@ -78,7 +78,7 @@ namespace DeviceMonitor.Core.Services
 
                 List<DeviceConfig>? configs = JsonSerializer.Deserialize<List<DeviceConfig>>(json, ReadOptions);
 
-                if(configs is  null || configs.Count == 0)
+                if (configs is null || configs.Count == 0)
                 {
                     Log.Warn("配置文件 {Path} 解析结果为 null 或空列表，按首次启动处理。", AppLog.Wrap(FilePath));
                     var demo = CreateDefaultDemoDevices();
@@ -91,7 +91,7 @@ namespace DeviceMonitor.Core.Services
 
                 foreach (DeviceConfig config in configs)
                 {
-                    if(string.IsNullOrWhiteSpace(config.Id))
+                    if (string.IsNullOrWhiteSpace(config.Id))
                     {
                         config.Id = Guid.NewGuid().ToString("N");
                         idGenerated = true;
@@ -103,7 +103,7 @@ namespace DeviceMonitor.Core.Services
                         idGenerated = true;
                     }
 
-                    foreach(PointConfig point in config.Points)
+                    foreach (PointConfig point in config.Points)
                     {
                         if (string.IsNullOrWhiteSpace(point.Id))
                         {
@@ -148,7 +148,7 @@ namespace DeviceMonitor.Core.Services
 
             string? dir = Path.GetDirectoryName(FilePath);
 
-            if(!string.IsNullOrEmpty(dir)) 
+            if (!string.IsNullOrEmpty(dir))
                 Directory.CreateDirectory(dir);
 
             // 原子写：先写临时文件再替换，避免"写到一半断电/崩溃"留下半截 JSON
@@ -176,7 +176,7 @@ namespace DeviceMonitor.Core.Services
         {
             try
             {
-                if(!File.Exists(FilePath))
+                if (!File.Exists(FilePath))
                     return;
 
                 string stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss");

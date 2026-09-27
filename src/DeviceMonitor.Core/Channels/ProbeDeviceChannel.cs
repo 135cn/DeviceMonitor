@@ -1,4 +1,3 @@
-using DeviceMonitor.Core.Models;
 using DeviceMonitor.Core.Services;
 
 namespace DeviceMonitor.Core.Channels;

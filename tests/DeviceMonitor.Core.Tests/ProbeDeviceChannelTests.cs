@@ -2,7 +2,6 @@
 using DeviceMonitor.Core.Models;
 using DeviceMonitor.Core.Protocol;
 using DeviceMonitor.Core.Services;
-using Xunit;
 
 namespace DeviceMonitor.Core.Tests;
 
@@ -33,7 +32,12 @@ public class ProbeDeviceChannelTests
     private static PointConfig Point(string name) => new()
     {
         Id = Guid.NewGuid().ToString("N"),
-        Name = name, FunctionCode = 3, StartAddress = 0, Quantity = 1, Scale = 1, Unit = "℃",
+        Name = name,
+        FunctionCode = 3,
+        StartAddress = 0,
+        Quantity = 1,
+        Scale = 1,
+        Unit = "℃",
     };
 
     // ---------------- 探针通道本身 ----------------

@@ -1,7 +1,6 @@
 ﻿using DeviceMonitor.Core.DataAccess;
 using DeviceMonitor.Core.Models;
 using Microsoft.Data.Sqlite;
-using Xunit;
 
 namespace DeviceMonitor.Core.Tests;
 

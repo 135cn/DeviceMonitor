@@ -1,6 +1,5 @@
-using System.Text.Json;
 using DeviceMonitor.Core.Models;
-using Xunit;
+using System.Text.Json;
 
 namespace DeviceMonitor.Core.Tests;
 

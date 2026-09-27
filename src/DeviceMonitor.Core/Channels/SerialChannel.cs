@@ -5,7 +5,7 @@ using System.IO.Ports;
 namespace DeviceMonitor.Core.Channels;
 
 /// <summary>
-/// 串口通道（D8~D9 实现）。封装 System.IO.Ports.SerialPort。
+/// 串口通道。封装 System.IO.Ports.SerialPort。
 ///
 /// 关键决策（可参考你 SerialTool 中 SerialPortManager 的状态机与错误处理思路）：
 ///  - 采用"同步 Read + ReadTimeout"模式，由设备专属轮询线程独占调用，不混用
@@ -135,7 +135,7 @@ public sealed class SerialChannel : IDeviceChannel
     /// </summary>
     public byte[]? ReadFrame(int expectedLength, int timeoutMs)
     {
-       if(expectedLength <= 0)
+        if (expectedLength <= 0)
             throw new ArgumentOutOfRangeException(
                 nameof(expectedLength), expectedLength, "期望长度必须大于 0。");
 
@@ -146,14 +146,14 @@ public sealed class SerialChannel : IDeviceChannel
 
         lock (_ioLock)
         {
-            if(_port is null || !_port.IsOpen)
+            if (_port is null || !_port.IsOpen)
                 throw new InvalidOperationException($"串口 {_config.PortName} 未打开，不能读取数据。");
 
             var buffer = new byte[expectedLength];
             int collected = 0;
             var stopwatch = Stopwatch.StartNew();
 
-            while(collected < expectedLength)
+            while (collected < expectedLength)
             {
                 int remaining = timeoutMs - (int)stopwatch.ElapsedMilliseconds;
                 if (remaining <= 0)

@@ -4,7 +4,6 @@ using DeviceMonitor.Core.Protocol;
 using DeviceMonitor.Core.Services;
 using System.Diagnostics;
 using System.Threading.Channels;
-using Xunit;
 
 namespace DeviceMonitor.Core.Tests;
 

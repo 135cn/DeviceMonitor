@@ -3,7 +3,6 @@ using DeviceMonitor.Core.Models;
 using DeviceMonitor.Core.Protocol;
 using DeviceMonitor.Core.Services;
 using System.Diagnostics;
-using Xunit;
 
 namespace DeviceMonitor.Core.Tests;
 

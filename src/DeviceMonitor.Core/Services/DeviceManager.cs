@@ -2,12 +2,7 @@
 using DeviceMonitor.Core.Diagnostics;
 using DeviceMonitor.Core.Models;
 using NLog;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading.Channels;
-using System.Threading.Tasks;
 
 namespace DeviceMonitor.Core.Services
 {
@@ -122,7 +117,7 @@ namespace DeviceMonitor.Core.Services
         {
             get
             {
-                lock(_gate)
+                lock (_gate)
                     return _devices.ToArray();
             }
         }
@@ -175,18 +170,18 @@ namespace DeviceMonitor.Core.Services
             DeviceHandle handle;
             lock (_gate)
             {
-                if(_disposed)
+                if (_disposed)
                     throw new ObjectDisposedException(nameof(DeviceManager));
 
-                if(_devices.Any(d => d.Config.Id == config.Id))
+                if (_devices.Any(d => d.Config.Id == config.Id))
                     throw new ArgumentException($"设备 Id「{config.Id}」已存在。", nameof(config));
 
                 // 端口冲突在"保存前校验"里也会拦，但这里是最后一道防线：
                 // 两个采集线程抢同一个串口必然一个一直失败，属于很难排查的状态。
-                DeviceHandle? conflict = _devices.FirstOrDefault(d => 
+                DeviceHandle? conflict = _devices.FirstOrDefault(d =>
                 string.Equals(d.Config.PortName, config.PortName, StringComparison.OrdinalIgnoreCase));
 
-                if(conflict is not  null)
+                if (conflict is not null)
                     throw new ArgumentException(
                        $"端口 {config.PortName} 已被设备「{conflict.Config.Name}」占用。", nameof(config));
 
@@ -213,7 +208,7 @@ namespace DeviceMonitor.Core.Services
             {
                 handle = _devices.FirstOrDefault(d => d.Config.Id == deviceId);
 
-                if(handle is null)
+                if (handle is null)
                 {
                     Log.Warn("RemoveDeviceAsync：未找到设备 {Id}，忽略。", AppLog.Wrap(deviceId));
                     return false;
@@ -410,7 +405,7 @@ namespace DeviceMonitor.Core.Services
         {
             DeviceHandle handle = Find(deviceId);
 
-            if(!handle.Collector.IsRunning)
+            if (!handle.Collector.IsRunning)
                 await handle.Collector.StartAsync(externalToken).ConfigureAwait(false);
         }
 
@@ -436,7 +431,8 @@ namespace DeviceMonitor.Core.Services
             handle.Collector.StatusChanged += _ => DeviceStatusChanged?.Invoke(handle);
 
             return handle;
-        }        private void StartSamplePumps( DeviceHandle handle)
+        }
+        private void StartSamplePumps(DeviceHandle handle)
         {
             Task pump = Task.Run(async () =>
             {
@@ -491,7 +487,7 @@ namespace DeviceMonitor.Core.Services
 
                 _disposed = true;
             }
-            
+
 
             await StopAllAsync().ConfigureAwait(false);// 1) 停采集：等轮询任务退出、关串口
 

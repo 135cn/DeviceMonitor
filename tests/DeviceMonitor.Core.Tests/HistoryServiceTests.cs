@@ -2,7 +2,6 @@
 using DeviceMonitor.Core.Models;
 using DeviceMonitor.Core.Services;
 using System.Threading.Channels;
-using Xunit;
 
 namespace DeviceMonitor.Core.Tests;
 

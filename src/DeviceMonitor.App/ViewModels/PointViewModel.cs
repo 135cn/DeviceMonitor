@@ -11,7 +11,7 @@ namespace DeviceMonitor.App.ViewModels
 
         public PointConfig Config { get; }
 
-        public string Name {  get; }
+        public string Name { get; }
 
         public string Unit { get; }
 
@@ -29,10 +29,10 @@ namespace DeviceMonitor.App.ViewModels
         /// </summary>
         public DeviceViewModel Device { get; }
 
-        public PointViewModel(DeviceViewModel device, PointConfig config) 
+        public PointViewModel(DeviceViewModel device, PointConfig config)
         {
             Device = device;
-            DeviceId =device.Id;
+            DeviceId = device.Id;
             DeviceName = device.Name;
             Config = config;
             Name = config.Name;
@@ -67,8 +67,8 @@ namespace DeviceMonitor.App.ViewModels
         /// ⚠️ 必须看 CurrentValue 判断"有没有数据"：Reset() 之后 RawValue 是 0，
         ///    直接绑 RawValue 会显示成误导性的 "0"（看起来像真的采到了 0）。
         /// </summary>
-        public string RawText => CurrentValue is null 
-            ? "--" 
+        public string RawText => CurrentValue is null
+            ? "--"
             : RawValue.ToString();
 
         /// <summary>
@@ -85,7 +85,7 @@ namespace DeviceMonitor.App.ViewModels
         {
             get
             {
-                if(Config.AlarmLow is  null && Config.AlarmHigh is null)
+                if (Config.AlarmLow is null && Config.AlarmHigh is null)
                     return "--";
 
                 string low = Config.AlarmLow is double l ? l.ToString("F" + Config.Decimals) : "-∞";

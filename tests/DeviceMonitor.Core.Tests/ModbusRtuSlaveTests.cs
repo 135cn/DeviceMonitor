@@ -1,5 +1,4 @@
 ﻿using DeviceMonitor.Core.Protocol;
-using Xunit;
 
 namespace DeviceMonitor.Core.Tests;
 

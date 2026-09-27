@@ -1,10 +1,10 @@
 using DeviceMonitor.App.ViewModels;
 using DeviceMonitor.Core.Channels;
+using DeviceMonitor.Core.DataAccess;
 using DeviceMonitor.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
-using System.Windows;
-using DeviceMonitor.Core.DataAccess;
 using System.IO;
+using System.Windows;
 
 namespace DeviceMonitor.App;
 

@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace DeviceMonitor.Simulator
+﻿namespace DeviceMonitor.Simulator
 {
     /// <summary>波形类型：让模拟数据动起来。</summary>
     public enum WaveFormKind
@@ -102,7 +96,7 @@ namespace DeviceMonitor.Simulator
 
             double maxStepSize = Math.Max(1, _amplitude / 10);
 
-            while(_walkStep < step)
+            while (_walkStep < step)
             {
                 _walkStep++;
                 _walkValue += (_random.NextDouble() * 2 - 1) * maxStepSize;

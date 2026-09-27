@@ -35,7 +35,7 @@ namespace DeviceMonitor.App.ViewModels
             [StopBits.One, StopBits.OnePointFive, StopBits.Two];
 
         /// <summary>工作副本：所有界面编辑都落在这个对象上，不碰原配置。</summary>
-        public DeviceConfig Draft {  get; }
+        public DeviceConfig Draft { get; }
 
         /// <summary>点位编辑用（包一层 ObservableCollection，DataGrid 增删行才能立刻反映）。</summary>
         public ObservableCollection<PointConfig> Points { get; }
@@ -51,9 +51,9 @@ namespace DeviceMonitor.App.ViewModels
         /// <summary>原设备名（编辑模式下用户清空名称时，标题回退用）。</summary>
         private readonly string _originalName = string.Empty;
 
-        public DeviceEditViewModel( DeviceConfig? source = null)
+        public DeviceEditViewModel(DeviceConfig? source = null)
         {
-            if(source is null)
+            if (source is null)
             {
                 _isNew = true;
 
@@ -90,7 +90,7 @@ namespace DeviceMonitor.App.ViewModels
 
             Points = new ObservableCollection<PointConfig>(Draft.Points);
             // 点位集合变了要同步回 Draft（保存时用的是 Draft）
-            Points.CollectionChanged +=(_,_)=>{ SyncPoints(); Validate(); };
+            Points.CollectionChanged += (_, _) => { SyncPoints(); Validate(); };
             Validate();
         }
 
@@ -288,7 +288,7 @@ namespace DeviceMonitor.App.ViewModels
         [RelayCommand]
         private void RemovePoint(PointConfig? point)
         {
-            if(point is not null)
+            if (point is not null)
                 Points.Remove(point);
         }
 

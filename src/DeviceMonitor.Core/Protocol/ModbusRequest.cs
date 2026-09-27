@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace DeviceMonitor.Core.Protocol
+﻿namespace DeviceMonitor.Core.Protocol
 {
     /// <summary>
     /// 从站收到的请求模型。

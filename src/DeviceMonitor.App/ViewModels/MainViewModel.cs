@@ -18,7 +18,7 @@ namespace DeviceMonitor.App.ViewModels
     ///   状态流（低频）：DeviceManager.DeviceStatusChanged（采集线程）→ Dispatcher → 刷新设备状态；
     ///   样本流（高频）：DeviceManager.Samples（通道）→ 后台消费 + 节流合并 → Dispatcher 批量刷新。
     /// </summary>
-    public partial class MainViewModel : ObservableObject , IDisposable
+    public partial class MainViewModel : ObservableObject, IDisposable
     {
         /// <summary>UI 合并刷新间隔：这段时间内的样本只保留每个点位的最新值，一次性刷新。</summary>
         private const int UiRefreshIntervalMs = 150;
@@ -192,10 +192,10 @@ namespace DeviceMonitor.App.ViewModels
             }
         }
 
-        [RelayCommand(CanExecute =nameof(CanEditDevices))]
+        [RelayCommand(CanExecute = nameof(CanEditDevices))]
         private async Task EditDeviceAsync()
         {
-            if(SelectedDevice is null)
+            if (SelectedDevice is null)
             {
                 StateText = "请先在左侧选择一台设备。";
                 return;
@@ -205,7 +205,7 @@ namespace DeviceMonitor.App.ViewModels
             DeviceConfig original = handle.Config;
 
             var editViewModel = new DeviceEditViewModel(original);
-            var window = new Views.DeviceEditWindow(editViewModel) { Owner=Application.Current.MainWindow };
+            var window = new Views.DeviceEditWindow(editViewModel) { Owner = Application.Current.MainWindow };
 
             if (window.ShowDialog() != true || window.Result is null)
                 return;
@@ -221,12 +221,12 @@ namespace DeviceMonitor.App.ViewModels
             }
         }
 
-        [RelayCommand(CanExecute =nameof(CanEditDevices))]
+        [RelayCommand(CanExecute = nameof(CanEditDevices))]
         private async Task RemoveDeviceAsync()
         {
             DeviceViewModel? selected = SelectedDevice;
 
-            if(selected is null)
+            if (selected is null)
                 return;
 
             // ⚠️ 先把 Id/Name 取到局部变量：await 之后 SelectedDevice 可能已被
@@ -309,7 +309,7 @@ namespace DeviceMonitor.App.ViewModels
             var deviceViewModel = new DeviceViewModel(_deviceManager, handle);
             Devices.Add(deviceViewModel);
 
-            foreach(PointViewModel point in deviceViewModel.Points)
+            foreach (PointViewModel point in deviceViewModel.Points)
             {
                 AllPoint.Add(point);
                 _pointIndex[(handle.Config.Id, point.Config.Id)] = point;
@@ -342,12 +342,12 @@ namespace DeviceMonitor.App.ViewModels
         {
             // 简单粗暴但正确：按当前 DeviceManager 的设备列表对齐 ViewModel 集合。
             // 设备数量很少（个位数），重建开销可以忽略；点位对象复用则保证表格不会整表重绘。
-            HashSet<string> current = _deviceManager.Devices.Select(d=>d.Config.Id).ToHashSet();
+            HashSet<string> current = _deviceManager.Devices.Select(d => d.Config.Id).ToHashSet();
 
-            foreach(DeviceViewModel stale in Devices.Where( d=> !current.Contains(d.Id)).ToList())
+            foreach (DeviceViewModel stale in Devices.Where(d => !current.Contains(d.Id)).ToList())
                 RemoveDeviceViewModel(stale.Id);
 
-            foreach(DeviceHandle handle in _deviceManager.Devices)
+            foreach (DeviceHandle handle in _deviceManager.Devices)
             {
                 if (Devices.All(d => d.Id != handle.Config.Id))
                     AddDeviceViewModel(handle);
@@ -360,7 +360,7 @@ namespace DeviceMonitor.App.ViewModels
 
         private void RefreshDevice()
         {
-            foreach(DeviceViewModel device in Devices)
+            foreach (DeviceViewModel device in Devices)
             {
                 device.RefreshFromRuntime();
             }
@@ -373,9 +373,9 @@ namespace DeviceMonitor.App.ViewModels
 
             try
             {
-                while(await reader.WaitToReadAsync(_consumerCts.Token))
+                while (await reader.WaitToReadAsync(_consumerCts.Token))
                 {
-                    while(reader.TryRead(out DataSample? sample))
+                    while (reader.TryRead(out DataSample? sample))
                     {
                         if (sample is null)
                             continue;
@@ -397,12 +397,12 @@ namespace DeviceMonitor.App.ViewModels
 
         private void FlushPending()
         {
-            if(_pending.IsEmpty)
+            if (_pending.IsEmpty)
                 return;
 
             _dispatcher.Invoke(() =>
             {
-                foreach (KeyValuePair<(string DeviceId, string PointId),DataSample> pair in _pending)
+                foreach (KeyValuePair<(string DeviceId, string PointId), DataSample> pair in _pending)
                 {
                     if (_pointIndex.TryGetValue(pair.Key, out PointViewModel? point))
                         point.Apply(pair.Value);
@@ -430,11 +430,11 @@ namespace DeviceMonitor.App.ViewModels
 
             StateText = online is null
                 ? $"{Devices.Count} 台设备 · 均未在线 · 最后刷新 {LastRefreshText}"
-                : $"{online.Name}（{online.PortName}）{online.StateText} · 轮询 {online.PollIntervalText}" 
+                : $"{online.Name}（{online.PortName}）{online.StateText} · 轮询 {online.PollIntervalText}"
                 + $" · 最后刷新 {LastRefreshText}";
         }
 
-        
+
 
         public void Dispose()
         {
