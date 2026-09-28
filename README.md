@@ -40,7 +40,7 @@ DeviceMonitor.sln                      # 解决方案（传统 sln 格式，VS 2
 
 ## 当前进度
 
-**已打通 D1~D19：协议层 → 通道层 → 采集服务 → 端到端链路 → WPF 界面 + 设备配置持久化 + 实时数据表 + 实时曲线 + 历史入库，全部可跑。**
+**已打通 D1~D20：协议层 → 通道层 → 采集服务 → 端到端链路 → WPF 界面 + 设备配置持久化 + 实时数据表 + 实时曲线 + 历史入库与查询回放，全部可跑。**
 
 | 模块 | 状态 |
 |---|---|
@@ -61,10 +61,10 @@ DeviceMonitor.sln                      # 解决方案（传统 sln 格式，VS 2
 | 实时数据表：在线状态圆点 + 报警灯 + 数值列格式化（`AlarmLimits` 限值判定） | ✅ 完成（D17，桌面验收已过） |
 | 实时曲线：`ScottPlot.WPF` + 滚动窗口（每系列定长 300 点）+ 复用主 VM 的 150ms 节流 | ✅ 完成（D18，桌面验收已过） |
 | 历史入库：`history.db`（SQLite）+ 通道扇出 + 攒批 200 条/5s 单事务 + WAL | ✅ 完成（D19，桌面验收已过） |
-| 报警入库 / Excel | ⛔ 未开始（D20~D28） |
+| 历史查询与曲线回放：筛选（设备 / 点位 / 时间段）+ 表格 + `ScottPlot` 曲线；查询走独立读连接 | ✅ 完成（D20，桌面验收已过） |
+| 报警入库 / Excel | ⛔ 未开始（D21~D28） |
 
-> **待做清单**：历史查询与曲线回放（D20）、
-> 上下限报警含死区（D21）、ClosedXML 报表导出（D22）、打磨与录屏（D23~D28）。
+> **待做清单**：上下限报警含死区（D21）、ClosedXML 报表导出（D22）、打磨与录屏（D23~D28）。
 >
 > 技术栈引入情况：**CommunityToolkit.Mvvm、Microsoft.Extensions.DependencyInjection、NLog
 > 已引入**；**`Microsoft.Data.Sqlite` 已引入（D19）**；`ClosedXML` 尚未引入；
@@ -86,14 +86,16 @@ dotnet test  tests/DeviceMonitor.Core.Tests/DeviceMonitor.Core.Tests.csproj   # 
 测试框架：**xunit v3 + Microsoft.Testing.Platform**（进程内运行，不依赖 VSTest testhost；
 命令行 `dotnet test` 可用，较新的 VS 2022 也能在测试资源管理器中直接发现）。
 
-当前规模：**17 个测试文件、229 个用例、0 失败**（其中 3 个端到端集成用例默认 Skip，见下）。
+当前规模：**18 个测试文件、250 个用例、0 失败**（其中 3 个端到端集成用例默认 Skip，见下）。
 覆盖范围：CRC 已知向量、组帧逐字节比对、响应解析（正常 / 异常码 / 坏 CRC / 短帧 / 粘包）、
 `FrameAssembler` 半包与失步重同步、从站读写的异常码与地址过滤、主从对拍、
 `CollectorService` 的轮询与「连续超时 → 离线 → 自动恢复」状态机、`SerialChannel` 异常映射与虚拟串口回环收发、
 配置校验器（端口/地址/数量越界、点位全禁用、Id 与寄存器范围重叠）、
 限值判定（`AlarmLimits`，含"压线不算越限"的边界）、
 `devices.json` 往返与**跨次启动 Id 稳定性**、启动自检通道与通道工厂热替换、
-历史落库（攒批规则、扇出不丢样本、真库的索引/WAL/区间查询）。
+历史落库（攒批规则、扇出不丢样本、真库的索引/WAL/区间查询）、
+历史查询纯函数（本地↔UTC 归一、降采样"首尾必留"、自定义时间文本解析）、
+真库的并发读写（采集正在写入的同时做历史查询）。
 
 依赖虚拟串口的用例（`SerialChannelTests` / `SerialChannelLoopbackTests`）在**本机没有该端口时自动 Skip**，
 不会把测试套件拖红。端到端集成测试默认跳过，要跑它见「端到端自动化验证」。
@@ -165,11 +167,10 @@ $env:SIMULATOR_E2E = '1'; dotnet test tests/DeviceMonitor.Core.Tests
 
 ## 后续开发顺序
 
-按 `docs/DeviceMonitor-Design.md` §9 的 28 天清单推进（**D1~D19 已完成**）：
+按 `docs/DeviceMonitor-Design.md` §9 的 28 天清单推进（**D1~D20 已完成**）：
 
 ```
-历史查询与曲线回放(D20)
-→ 报警与死区(D21) → Excel 报表(D22) → 打磨 / 录屏 / README(D23~D28)
+报警与死区(D21) → Excel 报表(D22) → 打磨 / 录屏 / README(D23~D28)
 ```
 
 > 历史库落在 `bin/.../history.db`（和 `devices.json` 同目录，单文件零部署）：
