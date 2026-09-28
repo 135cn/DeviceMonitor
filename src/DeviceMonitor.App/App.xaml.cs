@@ -34,19 +34,33 @@ public partial class App : Application
             //   整个软件启动即抛异常、界面根本出不来 —— 而用户此时唯一的办法是手工改 JSON。
             //   探针通道把这个尴尬变成了"设备显示离线、可在界面里改掉或删掉"。
             //   真正点"启动采集"时，MainViewModel 会把工厂换回 SerialChannel 并重建句柄。
+            // 报警判定挂在 DeviceManager 的样本泵上（D21）。
+            // 这里必须走**工厂**注册：直接写 AddSingleton<DeviceManager>() 的话，
+            // DI 得去猜 IEnumerable<DeviceConfig> 这个参数，猜不出来 —— 启动即崩（坑 #41）。
             return new DeviceManager(
                 store.Load(),
-                config => new ProbeDeviceChannel(config.PortName));
+                config => new ProbeDeviceChannel(config.PortName),
+                alarmService: provider.GetRequiredService<AlarmService>());
         });
 
-        // ---- 历史落库----
+        // ----历史库（样本 + 报警共用同一个库文件）----
         // 库文件放 exe 同目录（和 devices.json 一样），保持"单文件零部署"。
-        // 注册顺序是有意的：HistoryService 在 DeviceManager 之后注册，容器**按逆序释放**，
-        // 于是它先停（冲刷余量）再拆采集 —— 不会出现"边拆采集边写库"。
-        services.AddSingleton<IHistoryStore>(_ => new SqliteHistoryStore(
+        // ★ 两个存储接口必须解析到**同一个 SqliteHistoryStore 实例**：
+        //   各 new 一个的话，样本写和报警写会各持一条连接、各有一把写锁 —— 锁不互斥，
+        //   两个事务真的会并发撞库。所以先注册具体类型，再让两个接口都转发到它。
+        services.AddSingleton(_ => new SqliteHistoryStore(
             Path.Combine(AppContext.BaseDirectory, "history.db")));
 
+        services.AddSingleton<IHistoryStore>(p => p.GetRequiredService<SqliteHistoryStore>());
+        services.AddSingleton<IAlarmStore>(p => p.GetRequiredService<SqliteHistoryStore>());
+
+        // 注册顺序是有意的：容器**按逆序释放**，于是退出时是
+        //   「两个服务各自冲刷余量 → 关库 → 拆采集」
+        // 不会出现"边拆采集边写库"。DeviceManager 注册在最前面（见上），所以它最后释放。
+        services.AddSingleton<AlarmService>();
         services.AddSingleton<HistoryService>();
+
+        services.AddSingleton<AlarmListViewModel>();
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<MainWindow>();
 
@@ -57,6 +71,11 @@ public partial class App : Application
         // 一旦失败，用户看到的是界面正常、只是历史悄悄没记（最难查的那种）。
         _service.GetRequiredService<HistoryService>()
             .StartAsync(_service.GetRequiredService<DeviceManager>().HistorySamples)
+            .GetAwaiter().GetResult();
+
+        // 报警服务同理：它只做判定 + 攒批，采集没启动时不会有任何输入，空转等待即可。
+        _service.GetRequiredService<AlarmService>()
+            .StartAsync()
             .GetAwaiter().GetResult();
 
         MainWindow window = _service.GetRequiredService<MainWindow>();

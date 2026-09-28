@@ -27,6 +27,7 @@ namespace DeviceMonitor.App.ViewModels
         private readonly IDeviceConfigStore _configStore;
         private readonly DeviceManager _deviceManager;
         private readonly IHistoryStore _historyStore;
+        private readonly AlarmListViewModel _alarms;
         private readonly Dispatcher _dispatcher;
 
         /// <summary>待刷新样本：key = (设备Id, 点位Id)，同一测点只留最新值。</summary>
@@ -48,11 +49,12 @@ namespace DeviceMonitor.App.ViewModels
         private int _pendingSampleCount;
 
 
-        public MainViewModel(DeviceManager deviceManager, IDeviceConfigStore configStore, IHistoryStore historyStore)
+        public MainViewModel(DeviceManager deviceManager, IDeviceConfigStore configStore, IHistoryStore historyStore, AlarmListViewModel alarms)
         {
             _configStore = configStore;
             _deviceManager = deviceManager;
             _historyStore = historyStore;
+            _alarms = alarms;
             _dispatcher = Application.Current.Dispatcher;
 
             // 1) 按设备构建 ViewModel 与点位索引
@@ -72,11 +74,15 @@ namespace DeviceMonitor.App.ViewModels
             _consumerTask = Task.Run(ConsumeSamplesAsync);
 
             UpdateStatusBar();
+            _alarms = alarms;
         }
 
 
         /// <summary>设备列表（UI 绑定用）。</summary>
         public ObservableCollection<DeviceViewModel> Devices { get; } = new();
+
+        /// <summary>实时报警列表。界面绑定 <c>Alarms.Rows</c>。</summary>
+        public AlarmListViewModel Alarms => _alarms;
 
         public ObservableCollection<PointViewModel> AllPoint { get; } = new();
 
@@ -111,6 +117,12 @@ namespace DeviceMonitor.App.ViewModels
         [RelayCommand(CanExecute = nameof(canStart))]
         private async Task StartAllAsync()
         {
+            // ★ 新一轮采集从**干净的报警状态**开始：
+            //   否则"停止采集 → 改点位限值 → 再启动"这条路径上，点位状态位还记着上一轮的 High，
+            //   新配置下第一个越限样本不会产生新报警（状态机认为"已经在报警中"），
+            //   界面上就是"明明超限了，报警列表却一动不动"。
+            _alarms.ResetAlarmState();
+
             // ★ 启动采集前把通道切成真实串口。
             //   应用启动时用的是 ProbeDeviceChannel（只探测、不占口），这样"配置里留着一条
             //   坏端口"也不会导致软件打不开；真正要通信前必须先换回串口实现，
@@ -168,6 +180,7 @@ namespace DeviceMonitor.App.ViewModels
             }
 
             Curve.Clear();
+            _alarms.Clear();// 报警列表也是"数据"，一起清
             ReceivedSampleCount = 0;
             LastRefreshText = "--:--:--";
         }
@@ -454,6 +467,8 @@ namespace DeviceMonitor.App.ViewModels
 
         public void Dispose()
         {
+            _alarms.Dispose();
+
             _deviceManager.DeviceStatusChanged -= OnDeviceStatusChanged;
             _deviceManager.DevicesChanged -= OnDeviceChanged;
             _deviceManager.DeviceReplaced -= OnDeviceReplaced;

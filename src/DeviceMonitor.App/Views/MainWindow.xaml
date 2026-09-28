@@ -244,14 +244,74 @@
                 
                 
                 <GridSplitter Grid.Row="1" Height="4" HorizontalAlignment="Stretch" Background="#EEE"/>
-                <!-- 曲线区（D18 换成 ScottPlot.WPF 的控件） -->
+                <!-- 曲线区 -->
                 <Border Grid.Row="2" BorderBrush="#DDD" BorderThickness="1">
                     <sp:WpfPlot x:Name="CurvePlot"/>
                 </Border>
 
-                <TabControl Grid.Row="3" Height="130" Margin="0,8,0,0">
-                    <TabItem Header="实时报警">
-                        <TextBlock Text="报警列表（D21 实现）" Margin="10" Foreground="#999"/>
+                <TabControl Grid.Row="3" Height="170" Margin="0,8,0,0">
+                    <TabItem Header="{Binding Alarms.SummaryText}">
+
+                        <DataGrid ItemsSource="{Binding Alarms.Rows}"
+                                  AutoGenerateColumns="False" IsReadOnly="True"
+                                  CanUserAddRows="False" HeadersVisibility="Column"
+                                  GridLinesVisibility="Horizontal"
+                                  EnableRowVirtualization="True"
+                                  RowHeight="22" FontSize="12"
+                                  BorderThickness="0">
+
+                            <DataGrid.ColumnHeaderStyle>
+                                <Style TargetType="DataGridColumnHeader">
+                                    <Setter Property="FontWeight" Value="SemiBold"/>
+                                    <Setter Property="HorizontalContentAlignment" Value="Center"/>
+                                    <Setter Property="Padding" Value="6,3"/>
+                                    <Setter Property="Background" Value="#F3F3F3"/>
+                                    <Setter Property="BorderBrush" Value="#DDD"/>
+                                    <Setter Property="BorderThickness" Value="0,0,1,1"/>
+                                </Style>
+                            </DataGrid.ColumnHeaderStyle>
+
+
+                            <DataGrid.RowStyle>
+                                <Style TargetType="DataGridRow">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsAlarm}" Value="False">
+                                            <Setter Property="Foreground" Value="#999"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </DataGrid.RowStyle>
+
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="时间" Binding="{Binding TimeText}" Width="80"/>
+                                <DataGridTextColumn Header="设备" Binding="{Binding DeviceName}" Width="130"/>
+                                <DataGridTextColumn Header="点位" Binding="{Binding PointName}" Width="90"/>
+                                <DataGridTextColumn Header="工程值" Binding="{Binding ValueText}" Width="80">
+                                    <DataGridTextColumn.ElementStyle>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="HorizontalAlignment" Value="Center"/>
+                                            <Setter Property="FontFamily" Value="Consolas"/>
+                                        </Style>
+                                    </DataGridTextColumn.ElementStyle>
+                                </DataGridTextColumn>
+                                <DataGridTextColumn Header="类别" Binding="{Binding KindText}" Width="70">
+                                    <DataGridTextColumn.ElementStyle>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="HorizontalAlignment" Value="Center"/>
+                                            <Setter Property="FontWeight" Value="SemiBold"/>
+                                            <Setter Property="Foreground" Value="#C62828"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsAlarm}" Value="False">
+                                                    <Setter Property="Foreground" Value="#2E7D32"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </DataGridTextColumn.ElementStyle>
+                                </DataGridTextColumn>
+                                <DataGridTextColumn Header="说明" Binding="{Binding Message}" Width="*" MinWidth="150"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                        
                     </TabItem>
                     <TabItem Header="运行日志">
                         <TextBlock Text="运行日志" Margin="10" Foreground="#999"/>

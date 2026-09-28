@@ -97,6 +97,7 @@
                     <DataGridTextColumn Header="小数点" Binding="{Binding Decimals, UpdateSourceTrigger=PropertyChanged}" Width="70"/>
                     <DataGridTextColumn Header="上限" Binding="{Binding AlarmHigh, UpdateSourceTrigger=PropertyChanged}" Width="70"/>
                     <DataGridTextColumn Header="下限" Binding="{Binding AlarmLow, UpdateSourceTrigger=PropertyChanged}" Width="70"/>
+                    <DataGridTextColumn Header="死区" Binding="{Binding AlarmDeadband, UpdateSourceTrigger=PropertyChanged}" Width="60"/>
                     <DataGridCheckBoxColumn Header="启用" Binding="{Binding Enabled, UpdateSourceTrigger=PropertyChanged}" Width="50"/>
                     <DataGridTemplateColumn Header="操作" Width="80">
                         <DataGridTemplateColumn.CellTemplate>
