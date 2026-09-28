@@ -273,4 +273,131 @@ public class SqliteHistoryStoreTests : IDisposable
         Assert.True(readErrors == 0 && writeErrors == 0,
             $"并发读写出现异常（读 {readErrors} 次 / 写 {writeErrors} 次）：{string.Join("; ", errors)}");
     }
+
+    // ---------------- 报警表（D21） ----------------
+
+    private static AlarmRecord Alarm(string deviceId, string pointId, DateTime utc, double value, AlarmKind kind)
+        => new(utc, deviceId, pointId, "温度", value, kind, $"{kind} @ {value}");
+
+    [Fact]
+    public async Task 报警_批量写入后能按设备查回且按时间升序()
+    {
+        await using var store = new SqliteHistoryStore(_dbPath);
+        await store.InitializeAsync(TestContext.Current.CancellationToken);
+
+        await store.WriteAlarmAsync(
+        [
+            Alarm("dev-A", "pt-1", T0, 120, AlarmKind.High),
+            Alarm("dev-A", "pt-1", T0.AddMinutes(1), 90, AlarmKind.Recovered),
+            Alarm("dev-B", "pt-1", T0, -5, AlarmKind.Low),
+        ], TestContext.Current.CancellationToken);
+
+        IReadOnlyList<AlarmRecord> byDevice = await store.QueryAlarmAsync(
+            "dev-A", null, T0.AddHours(-1), T0.AddHours(1), 100, TestContext.Current.CancellationToken);
+
+        Assert.Equal(2, byDevice.Count);
+        Assert.Equal(AlarmKind.High, byDevice[0].Kind);
+        Assert.Equal(AlarmKind.Recovered, byDevice[1].Kind);
+        Assert.Equal("温度", byDevice[0].PointName);       // 点名是 D21 特意多存的一列
+    }
+
+    [Fact]
+    public async Task 报警_时间区间过滤有效()
+    {
+        // ★ 坑 #42 的回归保险：时间参数若不走 ToIso（定长 ISO8601 带 Z），
+        //   区间查询会恒返回 0 条 —— 而写入、计数全都正常，极难发现。
+        await using var store = new SqliteHistoryStore(_dbPath);
+        await store.InitializeAsync(TestContext.Current.CancellationToken);
+
+        await store.WriteAlarmAsync(
+        [
+            Alarm("dev-A", "pt-1", T0.AddHours(-5), 120, AlarmKind.High),
+            Alarm("dev-A", "pt-1", T0, 120, AlarmKind.High),
+            Alarm("dev-A", "pt-1", T0.AddHours(5), 120, AlarmKind.High),
+        ], TestContext.Current.CancellationToken);
+
+        IReadOnlyList<AlarmRecord> result = await store.QueryAlarmAsync(
+            "dev-A", "pt-1", T0.AddMinutes(-1), T0.AddMinutes(1), 100, TestContext.Current.CancellationToken);
+
+        Assert.Single(result);
+        Assert.Equal(T0, result[0].Utc);
+    }
+
+    [Fact]
+    public async Task 报警_点位过滤生效()
+    {
+        await using var store = new SqliteHistoryStore(_dbPath);
+        await store.InitializeAsync(TestContext.Current.CancellationToken);
+
+        await store.WriteAlarmAsync(
+        [
+            Alarm("dev-A", "pt-1", T0, 120, AlarmKind.High),
+            Alarm("dev-A", "pt-2", T0, 120, AlarmKind.High),
+        ], TestContext.Current.CancellationToken);
+
+        IReadOnlyList<AlarmRecord> result = await store.QueryAlarmAsync(
+            "dev-A", "pt-2", T0.AddHours(-1), T0.AddHours(1), 100, TestContext.Current.CancellationToken);
+
+        Assert.Single(result);
+        Assert.Equal("pt-2", result[0].PointId);
+    }
+
+    [Fact]
+    public async Task 报警_空批次返回0且不开事务()
+    {
+        await using var store = new SqliteHistoryStore(_dbPath);
+        await store.InitializeAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, await store.WriteAlarmAsync([], TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task 报警_表与索引真的建上了()
+    {
+        await using var store = new SqliteHistoryStore(_dbPath);
+        await store.InitializeAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal("alarm_log",
+            await QueryScalarAsync("SELECT name FROM sqlite_master WHERE type='table' AND name='alarm_log';"));
+        Assert.Equal("idx_alarm_time",
+            await QueryScalarAsync("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_alarm_time';"));
+        Assert.Equal("idx_alarm_point",
+            await QueryScalarAsync("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_alarm_point';"));
+    }
+
+    [Fact]
+    public async Task 报警与样本_两条写入路径并发也不撞库()
+    {
+        // 两条路径共用 SqliteHistoryStore 的同一把 _writeLock。这条同样是**冒烟**性质：
+        // 真出问题（锁没串行化）表现为偶发的 database is locked，不是每次都能复现。
+        await using var store = new SqliteHistoryStore(_dbPath);
+        await store.InitializeAsync(TestContext.Current.CancellationToken);
+
+        Task samples = Task.Run(async () =>
+        {
+            for (int i = 0; i < 20; i++)
+            {
+                await store.WriteBatchAsync(
+                    [Sample("dev-A", "pt-1", T0.AddMilliseconds(i), i)], CancellationToken.None);
+            }
+        }, TestContext.Current.CancellationToken);
+
+        Task alarms = Task.Run(async () =>
+        {
+            for (int i = 0; i < 20; i++)
+            {
+                await store.WriteAlarmAsync(
+                    [Alarm("dev-A", "pt-1", T0.AddMilliseconds(i), i, AlarmKind.High)], CancellationToken.None);
+            }
+        }, TestContext.Current.CancellationToken);
+
+        await Task.WhenAll(samples, alarms);
+
+        Assert.Equal(20, await store.CountAsync(null, TestContext.Current.CancellationToken));
+
+        IReadOnlyList<AlarmRecord> alarms2 = await store.QueryAlarmAsync(
+            null, null, T0.AddHours(-1), T0.AddHours(1), 100, TestContext.Current.CancellationToken);
+
+        Assert.Equal(20, alarms2.Count);
+    }
 }

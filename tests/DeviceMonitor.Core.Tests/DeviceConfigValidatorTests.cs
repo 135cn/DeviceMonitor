@@ -1,4 +1,4 @@
-using DeviceMonitor.Core.Models;
+﻿using DeviceMonitor.Core.Models;
 using DeviceMonitor.Core.Validation;
 
 namespace DeviceMonitor.Core.Tests;
@@ -286,6 +286,58 @@ public class DeviceConfigValidatorTests
     {
         var config = Device("温控器", "COM9", Point("温度"));
         config.Points[0].AlarmHigh = 100;   // 只设上限，未设下限
+
+        Assert.True(DeviceConfigValidator.ValidateDevice(config).IsValid);
+    }
+
+    // ---------------- 报警死区（D21） ----------------
+
+    [Fact]
+    public void 报警死区为负_校验失败()
+    {
+        // 负数死区会让"退出阈值"跑到"进入阈值"的反面 —— 一旦报警就永远恢复不了。
+        var config = Device("温控器", "COM9", Point("温度"));
+        config.Points[0].AlarmHigh = 100;
+        config.Points[0].AlarmDeadband = -1;
+
+        ValidationResult result = DeviceConfigValidator.ValidateDevice(config);
+
+        Assert.Contains(result.Errors, e => e.Field == nameof(PointConfig.AlarmDeadband));
+    }
+
+    [Fact]
+    public void 报警死区达到量程_校验失败()
+    {
+        // 死区 ≥ 量程时，上限报警的退出阈值（High - 死区）会跌到下限以下：
+        // 想恢复就得先把下限也破了，恢复记录和下限报警纠缠在一起，演示时说不清。
+        var config = Device("温控器", "COM9", Point("温度"));
+        config.Points[0].AlarmLow = 0;
+        config.Points[0].AlarmHigh = 100;
+        config.Points[0].AlarmDeadband = 100;      // 恰好等于量程
+
+        ValidationResult result = DeviceConfigValidator.ValidateDevice(config);
+
+        Assert.Contains(result.Errors, e => e.Message.Contains("死区"));
+    }
+
+    [Fact]
+    public void 报警死区小于量程_校验通过()
+    {
+        var config = Device("温控器", "COM9", Point("温度"));
+        config.Points[0].AlarmLow = 0;
+        config.Points[0].AlarmHigh = 100;
+        config.Points[0].AlarmDeadband = 2;
+
+        Assert.True(DeviceConfigValidator.ValidateDevice(config).IsValid);
+    }
+
+    [Fact]
+    public void 只设单边限值_死区不被量程规则误伤()
+    {
+        // 只配上限时根本没有"量程"可言，不该拿一个不存在的下限去卡死区。
+        var config = Device("温控器", "COM9", Point("温度"));
+        config.Points[0].AlarmHigh = 100;
+        config.Points[0].AlarmDeadband = 999;
 
         Assert.True(DeviceConfigValidator.ValidateDevice(config).IsValid);
     }

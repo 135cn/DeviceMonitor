@@ -21,7 +21,7 @@ namespace DeviceMonitor.Core.DataAccess;
 ///  4. **索引照抄设计文档**：<c>idx_history_time(ts)</c> 给"看某段时间全部设备"，
 ///     <c>idx_history_point(device_id, point_id, ts)</c> 给"看某台设备的某个点"——D20 的主力。
 /// </summary>
-public sealed class SqliteHistoryStore : IHistoryStore
+public sealed class SqliteHistoryStore : IHistoryStore, IAlarmStore
 {
     /// <summary>库里时间列的格式：定长 + 显式 UTC 标记（见类注释第 3 条）。</summary>
     private const string TsFormat = "yyyy-MM-ddTHH:mm:ss.fff'Z'";
@@ -79,7 +79,24 @@ public sealed class SqliteHistoryStore : IHistoryStore
                     "  point_id  TEXT NOT NULL," +
                     "  value     REAL NOT NULL);" +
                     "CREATE INDEX IF NOT EXISTS idx_history_time ON history(ts);" +
-                    "CREATE INDEX IF NOT EXISTS idx_history_point ON history(device_id, point_id, ts);";
+                    "CREATE INDEX IF NOT EXISTS idx_history_point ON history(device_id, point_id, ts);" +
+                    // alarm_log（D21）：列结构照抄设计文档 §6.5，**只有一处刻意的偏离** ——
+                    // 多存了一列 point_name。原因：报警列表（尤其 D22 要导出的 Excel）必须显示点名，
+                    // 而按 point_id 反查 devices.json 会引入"配置改名后历史报警跟着变"的耦合
+                    // （历史样本那边是有意接受这个耦合的，但报警是"事件存档"，应该冻结当时的名字）。
+                    // message 里虽然也有人类可读的点名，但它是给人看的文本，不该拿来当数据源解析。
+                    "CREATE TABLE IF NOT EXISTS alarm_log(" +
+                    "  id INTEGER PRIMARY KEY AUTOINCREMENT," +
+                    "  ts TEXT NOT NULL," +
+                    "  device_id TEXT," +
+                    "  point_id  TEXT," +
+                    "  point_name TEXT," +
+                    "  value     REAL," +
+                    "  kind      TEXT," +
+                    "  message   TEXT);" +
+                    // 报警量小（一天几百条），但 D22 报表要按"设备 + 点位 + 区间"扫，建上更省事。
+                    "CREATE INDEX IF NOT EXISTS idx_alarm_time ON alarm_log(ts);" +
+                    "CREATE INDEX IF NOT EXISTS idx_alarm_point ON alarm_log(device_id, point_id, ts);";
                 await ddl.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
             }
         }
@@ -141,6 +158,57 @@ public sealed class SqliteHistoryStore : IHistoryStore
         }
     }
 
+    public async Task<int> WriteAlarmAsync(IReadOnlyList<AlarmRecord> batch, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(batch);
+
+        if(batch.Count == 0)
+            return 0;
+
+        SqliteConnection connection = EnsureInitialized();
+
+        await _writeLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await using SqliteTransaction tx = (SqliteTransaction) await connection
+                .BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+
+            await using SqliteCommand cmd = connection.CreateCommand();
+            cmd.Transaction = tx;
+            cmd.CommandText = "INSERT INTO alarm_log(ts, device_id, point_id, point_name, value, kind, message) VALUES ($ts, $dev, $pt, $name, $val, $kind, $msg);";
+            
+            SqliteParameter pTS = cmd.Parameters.Add("$ts", SqliteType.Text);
+            SqliteParameter PDev = cmd.Parameters.Add("$dev", SqliteType.Text);
+            SqliteParameter pPt = cmd.Parameters.Add("$pt", SqliteType.Text);
+            SqliteParameter pName = cmd.Parameters.Add("$name", SqliteType.Text);
+            SqliteParameter pVal = cmd.Parameters.Add("$val", SqliteType.Real);
+            SqliteParameter pKind = cmd.Parameters.Add("$kind", SqliteType.Text);
+            SqliteParameter pMsg = cmd.Parameters.Add("$msg", SqliteType.Text);
+
+            foreach(AlarmRecord record in batch)
+            {
+                pTS.Value = ToIso(record.Utc);
+                PDev.Value = record.DeviceId;
+                pPt.Value = record.PointId;
+                pName.Value = record.PointName;
+                pVal.Value = record.Value;
+                pKind.Value = record.Kind.ToString();  // "High" / "Low" / "Recovered"
+                pMsg.Value = record.Message;
+
+                await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            await tx.CommitAsync(cancellationToken).ConfigureAwait(false);
+            return batch.Count;
+        }
+        finally
+        {
+            _writeLock.Release();
+        }
+    }
+
+
+
     public async Task<IReadOnlyList<HistorySample>> QueryAsync(
         string deviceId,
         string? pointId,
@@ -188,6 +256,59 @@ public sealed class SqliteHistoryStore : IHistoryStore
         return result;
     }
 
+
+    public async Task<IReadOnlyList<AlarmRecord>> QueryAlarmAsync(
+        string? deviceId, 
+        string? pointId, 
+        DateTime fromUtc, 
+        DateTime toUtc, 
+        int limit = 100_000, 
+        CancellationToken cancellationToken = default)
+    {
+        await using SqliteConnection connection = await OpenReadConnectionAsync(cancellationToken).ConfigureAwait(false);
+
+        // 与 QueryAsync 同一套思路：条件组合写成"多套 SQL"而不是 `($x IS NULL OR col = $x)`，
+        // 后者会让 SQLite 用不上索引。
+        bool byDevice = !string.IsNullOrWhiteSpace(deviceId);
+        bool byPoint = !string.IsNullOrWhiteSpace(pointId);
+
+        string where = (byDevice, byPoint) switch
+        {
+            (true, true) => "WHERE device_id = $dev AND point_id = $pt AND ts >= $from AND ts <= $to",
+            (true, false) => "WHERE device_id = $dev AND ts >= $from AND ts <= $to",
+            _ => "WHERE ts >= $from AND ts <= $to",
+        };
+
+        await using SqliteCommand cmd = connection.CreateCommand();
+        cmd.CommandText = "SELECT ts, device_id, point_id, point_name, value, kind, message FROM alarm_log " + where + " ORDER BY ts LIMIT $limit;";
+
+        if(byDevice)
+            cmd.Parameters.AddWithValue("$dev", deviceId);
+        if(byPoint)
+            cmd.Parameters.AddWithValue("$pt", pointId);
+
+        cmd.Parameters.AddWithValue("$from", ToIso(fromUtc));
+        cmd.Parameters.AddWithValue("$to", ToIso(toUtc));
+        cmd.Parameters.AddWithValue("$limit", limit);
+
+        var result = new List<AlarmRecord>();
+        await using SqliteDataReader reader = await cmd.ExecuteReaderAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            result.Add(new AlarmRecord(
+                Utc: FromIso(reader.GetString(0)),
+                DeviceId: reader.GetString(1),
+                PointId: reader.GetString(2),
+                PointName: reader.GetString(3),
+                Value: reader.GetDouble(4),
+                Kind: Enum.TryParse(reader.GetString(5), out AlarmKind kind) ? kind : AlarmKind.High,
+                 Message: reader.GetString(6)));
+        }
+
+        return result;
+    }
     public async Task<long> CountAsync(string? deviceId = null, CancellationToken cancellationToken = default)
     {
         await using SqliteConnection connection = await OpenReadConnectionAsync(cancellationToken).ConfigureAwait(false);

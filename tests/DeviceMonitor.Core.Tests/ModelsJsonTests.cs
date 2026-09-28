@@ -1,4 +1,4 @@
-using DeviceMonitor.Core.Models;
+﻿using DeviceMonitor.Core.Models;
 using System.Text.Json;
 
 namespace DeviceMonitor.Core.Tests;
@@ -23,7 +23,7 @@ public class ModelsJsonTests
             new PointConfig
             {
                 Name = "温度", FunctionCode = 3, StartAddress = 0, Quantity = 1,
-                Unit = "℃", Scale = 0.1, Decimals = 1, AlarmHigh = 80,
+                Unit = "℃", Scale = 0.1, Decimals = 1, AlarmHigh = 80, AlarmDeadband = 2.5,
             },
             new PointConfig
             {
@@ -51,6 +51,8 @@ public class ModelsJsonTests
         Assert.Equal(3, back.Points[0].FunctionCode);
         Assert.Equal(0.1, back.Points[0].Scale);
         Assert.Equal(80, back.Points[0].AlarmHigh);
+        Assert.Equal(2.5, back.Points[0].AlarmDeadband);   // D21：死区要能存进 devices.json
+        Assert.Equal(0, back.Points[1].AlarmDeadband);     // 没配的点位取默认 0（= 不启用死区）
 
         Assert.Equal("压力", back.Points[1].Name);
         Assert.Equal(2, back.Points[1].Quantity);

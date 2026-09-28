@@ -55,7 +55,7 @@ namespace DeviceMonitor.Core.Services
             });
 
         /// <summary>
-        /// 历史落库专用通道（D19）。
+        /// 历史落库专用通道。
         ///
         /// ★ **为什么必须另开一条通道**：<c>Channel&lt;T&gt;</c> 的多个 reader 是**竞争**关系 ——
         ///   每个元素只会被其中一个 reader 取走。若让 UI 和存储在 <see cref="Sample"/> 上
@@ -73,6 +73,12 @@ namespace DeviceMonitor.Core.Services
         /// <summary>因历史缓冲满而丢弃的样本数（正常恒为 0）。</summary>
         private long _droppedHistorySamples;
 
+        /// <summary>
+        /// 报警判定（D21）。**可空** —— 报警是可选的旁路，不带它时 DeviceManager 的行为
+        /// 与 D19 完全一致（现有很多测试就是这么 new 出来的，不必为此都去造一个 store）。
+        /// </summary>
+        private readonly AlarmService? _alarm;
+
         private bool _disposed;
         /// <param name="configs">设备配置列表。</param>
         /// <param name="channelFactory">
@@ -81,14 +87,17 @@ namespace DeviceMonitor.Core.Services
         /// <param name="historyCapacity">
         /// 历史通道容量。默认 10 万条；测试里传入很小的值即可验证"缓冲满 → 计数丢弃"这条路径。
         /// </param>
+        /// <param name="alarmService">报警服务；为 null 表示这个实例不做报警判定。</param>
         public DeviceManager(
             IEnumerable<DeviceConfig> configs,
             Func<DeviceConfig, IDeviceChannel>? channelFactory = null,
-            int historyCapacity = 100_000)
+            int historyCapacity = 100_000,
+            AlarmService? alarmService = null)
         {
             ArgumentOutOfRangeException.ThrowIfLessThan(historyCapacity, 1);
 
             _channelFactory = channelFactory ?? (config => new SerialChannel(config));
+            _alarm = alarmService;
 
             _historySamples = Channel.CreateBounded<DataSample>(new BoundedChannelOptions(historyCapacity)
             {
@@ -243,6 +252,10 @@ namespace DeviceMonitor.Core.Services
             // 泵可能在摘除瞬间仍在收尾，但它的写入目标是 TryWrite、不会抛异常，安全。
             lock (_gate)
                 _samplePumps.Remove(deviceId);
+
+            // ★ D21：把该设备的报警状态位一并清掉 —— 否则设备重加回来会"带着上一轮的报警"，
+            //   而且反复增删设备会让状态字典无限增长。
+            _alarm?.ForgetDevice(deviceId);
 
             DevicesChanged?.Invoke();
             return true;
@@ -434,6 +447,16 @@ namespace DeviceMonitor.Core.Services
         }
         private void StartSamplePumps(DeviceHandle handle)
         {
+            // 点位 Id → 配置：报警判定要按 sample.PointId 取限值与死区。
+            // 预建字典是为了避免"每个样本都线性扫一遍 Points"（每秒 6 次 × N 台设备也是白费）。
+            // 用索引赋值而不是 ToDictionary：万一配置里 Id 撞了（校验器本该拦住），
+            // 后者会抛异常把整台设备的采集搞挂 —— 这里选"后写的赢"，绝不抛。
+            Dictionary<string, PointConfig> pointsById = new(StringComparer.Ordinal);
+
+            foreach (PointConfig point in handle.Config.Points)
+                pointsById[point.Id] = point;
+
+
             Task pump = Task.Run(async () =>
             {
                 try
@@ -447,6 +470,12 @@ namespace DeviceMonitor.Core.Services
                         // 这时宁可丢最新的 + 计数告警，也不要静默无痕地丢。
                         if (!_historySamples.Writer.TryWrite(sample))
                             CountHistoryDrop();
+
+                        // ★ D21 报警判定挂在这里，而不是 CollectorService：这里是样本的**唯一汇聚点**，
+                        //   已经同时握着样本、设备配置和点位索引 —— 不必再给报警单独开一条通道。
+                        //   判定是纯内存操作 + 无界通道 TryWrite，不会拖慢采集节拍。
+                        if (_alarm is not null && pointsById.TryGetValue(sample.PointId, out PointConfig? point))
+                            _alarm.Evaluate(sample, point);
                     }
                 }
                 catch (OperationCanceledException)

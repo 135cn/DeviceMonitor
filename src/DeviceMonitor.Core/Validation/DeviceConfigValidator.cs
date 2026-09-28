@@ -206,6 +206,21 @@ public static class DeviceConfigValidator
         if (point.AlarmHigh is double high && point.AlarmLow is double low && low >= high)
             AddPointError(nameof(PointConfig.AlarmHigh), $"报警下限（{low}）必须小于上限（{high}）。");
 
+        if (double.IsNaN(point.AlarmDeadband) || double.IsInfinity(point.AlarmDeadband))
+            AddPointError(nameof(PointConfig.AlarmDeadband), "报警死区不是有效数字。");
+        else if (point.AlarmDeadband < 0)
+            AddPointError(nameof(PointConfig.AlarmDeadband),
+                $"报警死区不能为负数，当前为 {point.AlarmDeadband}（负数会让报警一旦触发就永远恢复不了）。");
+        else if (point.AlarmDeadband > 0 &&
+                 point.AlarmHigh is double upper && point.AlarmLow is double lower &&
+                 point.AlarmDeadband >= upper - lower)
+        {
+            // 死区 ≥ 整个量程时，上限报警的"退出阈值"（High - 死区）会跌到下限以下 ——
+            // 想恢复就得先把下限也破了，恢复记录和下限报警纠缠在一起，语义混乱且没法演示。
+            AddPointError(nameof(PointConfig.AlarmDeadband),
+                $"报警死区（{point.AlarmDeadband}）必须小于量程（{upper} - {lower} = {upper - lower}）。");
+        }
+
         return errors.Count == 0 ? ValidationResult.Ok : new ValidationResult(errors);
     }
 }

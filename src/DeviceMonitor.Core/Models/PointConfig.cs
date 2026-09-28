@@ -37,6 +37,18 @@ public sealed class PointConfig
     public double? AlarmHigh { get; set; }
     public double? AlarmLow { get; set; }
 
+    /// <summary>
+    /// 报警死区。上限报警后，要回落到 <c>AlarmHigh - AlarmDeadband</c> 才算恢复；
+    /// 下限对称（回升到 <c>AlarmLow + AlarmDeadband</c>）。
+    ///
+    /// 为什么需要它：临界值附近的噪声会让报警反复产生/恢复 —— 界面上就是"抖屏"。
+    /// 死区让**进入**和**退出**用两个不同阈值（进：<c>&gt; High</c>；出：<c>&lt;= High - 死区</c>），
+    /// 夹在中间的那段波动不产生任何记录。
+    ///
+    /// 0 = 不启用死区（退化成"越过即报、回线即恢复"）；负数会被校验器拦住。
+    /// </summary>
+    public double AlarmDeadband { get; set; }
+
     public bool Enabled { get; set; } = true;
 
     /// <summary>
