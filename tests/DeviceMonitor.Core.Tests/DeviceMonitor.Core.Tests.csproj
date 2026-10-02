@@ -12,6 +12,7 @@
 
   <ItemGroup>
     <!-- 测试只覆盖 Core 的纯逻辑，不需要绘图库（ScottPlot 只属于 DeviceMonitor.App） -->
+    <PackageReference Include="ClosedXML" Version="0.105.1" />
     <PackageReference Include="xunit.v3" Version="3.2.2" />
     <PackageReference Include="Microsoft.Testing.Platform" Version="1.9.1" />
   </ItemGroup>
