@@ -1,0 +1,75 @@
+﻿<Window x:Class="DeviceMonitor.App.Views.ExportWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:viewmodels="clr-namespace:DeviceMonitor.App.ViewModels"
+        mc:Ignorable="d"
+        d:DataContext="{d:DesignInstance Type=viewmodels:ExportViewModel}"
+        Title="导出报表" Height="330" Width="620"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize">
+    <Grid Margin="14">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
+            <TextBlock Text="设备" VerticalAlignment="Center" Width="60"/>
+            <ComboBox Width="320" ItemsSource="{Binding Devices}" SelectedItem="{Binding SelectedDevice}"
+                      DisplayMemberPath="Name"/>
+        </StackPanel>
+
+
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,10">
+            <TextBlock Text="时间段" VerticalAlignment="Center" Width="60"/>
+            <ComboBox Width="130" ItemsSource="{Binding Presets}" SelectedItem="{Binding SelectedPreset}"
+                      DisplayMemberPath="Name"/>
+            <TextBox Width="140" Margin="8,0,0,0" VerticalContentAlignment="Center"
+                     Text="{Binding CustomFromText, UpdateSourceTrigger=PropertyChanged}"
+                     IsEnabled="{Binding IsCustomRange}"/>
+            <TextBlock Text="~" VerticalAlignment="Center" Margin="6,0"/>
+            <TextBox Width="140" VerticalContentAlignment="Center"
+                     Text="{Binding CustomToText, UpdateSourceTrigger=PropertyChanged}"
+                     IsEnabled="{Binding IsCustomRange}"/>
+        </StackPanel>
+
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,10">
+            <TextBlock Text="内容" VerticalAlignment="Center" Width="60"/>
+            <CheckBox Content="历史数据" IsChecked="{Binding IncludeHistory}" Margin="0,0,20,0" VerticalAlignment="Center"/>
+            <CheckBox Content="报警记录（配对后带持续时长）" IsChecked="{Binding IncludeAlarms}" VerticalAlignment="Center"/>
+        </StackPanel>
+
+
+        <Border Grid.Row="3" BorderBrush="#EEE" BorderThickness="0,1,0,0" Padding="0,10,0,0">
+            <TextBlock TextWrapping="Wrap" Foreground="#555" FontSize="12" LineHeight="19">
+                · 报表含两个工作表：<Run FontWeight="SemiBold">历史数据</Run> 与 <Run FontWeight="SemiBold">报警记录</Run>。<LineBreak/>
+                · 报警按「产生 + 恢复」配成事件并直接给出<Run FontWeight="SemiBold">持续时长</Run>；区间结束时仍未恢复的显示「进行中」。<LineBreak/>
+                · 时间按<Run FontWeight="SemiBold">本地时间</Run>写入报表（库里存的是 UTC）。<LineBreak/>
+                · 导出上限：历史 50000 行 / 报警 20000 条，超出会截断并在表尾标注。
+            </TextBlock>
+        </Border>
+
+
+        <Grid Grid.Row="4" Margin="0,12,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <TextBlock Grid.Column="0" Text="{Binding StatusText}" TextWrapping="Wrap"
+                       VerticalAlignment="Center" Foreground="#333" Margin="0,0,12,0"/>
+
+            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <Button Content="导出…" Command="{Binding ExportCommand}" Width="90" Height="28" Margin="0,0,8,0"/>
+
+                <Button Content="关闭" Width="90" Height="28" IsCancel="True"/>
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Window>

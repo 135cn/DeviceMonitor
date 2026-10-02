@@ -60,6 +60,9 @@ public partial class App : Application
         services.AddSingleton<AlarmService>();
         services.AddSingleton<HistoryService>();
 
+        // 导出（D22）：只依赖两个存储接口取数，无状态，单例即可。
+        services.AddSingleton<ExportService>();
+
         services.AddSingleton<AlarmListViewModel>();
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<MainWindow>();

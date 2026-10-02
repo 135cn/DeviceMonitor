@@ -38,7 +38,7 @@
                 <Separator/>
                 <Button Content="清空数据" Command="{Binding ClearPointsCommand}"/>
                 <Button Content="历史查询..." Command="{Binding OpenHistoryCommand}"/>
-                <Button Content="导出报表..." IsEnabled="False" ToolTip="TODO D22"/>
+                <Button Content="导出报表..." Command="{Binding OpenExportCommand}"/>
             </ToolBar>
         </ToolBarTray>
 

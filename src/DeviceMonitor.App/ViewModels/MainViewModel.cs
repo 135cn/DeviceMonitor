@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using DeviceMonitor.App.Views;
 using DeviceMonitor.Core.Channels;
 using DeviceMonitor.Core.DataAccess;
 using DeviceMonitor.Core.Models;
@@ -27,6 +28,7 @@ namespace DeviceMonitor.App.ViewModels
         private readonly IDeviceConfigStore _configStore;
         private readonly DeviceManager _deviceManager;
         private readonly IHistoryStore _historyStore;
+        private readonly ExportService _exportService;
         private readonly AlarmListViewModel _alarms;
         private readonly Dispatcher _dispatcher;
 
@@ -49,11 +51,12 @@ namespace DeviceMonitor.App.ViewModels
         private int _pendingSampleCount;
 
 
-        public MainViewModel(DeviceManager deviceManager, IDeviceConfigStore configStore, IHistoryStore historyStore, AlarmListViewModel alarms)
+        public MainViewModel(DeviceManager deviceManager, IDeviceConfigStore configStore, IHistoryStore historyStore, ExportService exportService, AlarmListViewModel alarms)
         {
             _configStore = configStore;
             _deviceManager = deviceManager;
             _historyStore = historyStore;
+            _exportService = exportService;
             _alarms = alarms;
             _dispatcher = Application.Current.Dispatcher;
 
@@ -74,7 +77,6 @@ namespace DeviceMonitor.App.ViewModels
             _consumerTask = Task.Run(ConsumeSamplesAsync);
 
             UpdateStatusBar();
-            _alarms = alarms;
         }
 
 
@@ -284,6 +286,15 @@ namespace DeviceMonitor.App.ViewModels
             }
         }
 
+        [RelayCommand]
+        private void OpenExport()
+        {
+            var viewModel = new ExportViewModel(_deviceManager, _exportService);
+
+            var window = new Views.ExportWindow(viewModel) { Owner = Application.Current.MainWindow };
+
+            window.ShowDialog();// 模态：导出是个有始有终的动作，别让用户边导边改配置
+        }
 
 
         // ---------------- 状态流 ----------------
