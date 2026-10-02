@@ -40,7 +40,7 @@ DeviceMonitor.sln                      # 解决方案（传统 sln 格式，VS 2
 
 ## 当前进度
 
-**已打通 D1~D21：协议层 → 通道层 → 采集服务 → 端到端链路 → WPF 界面 + 设备配置持久化 + 实时数据表 + 实时曲线 + 历史入库与查询回放 + 上下限报警（带死区），全部可跑。**
+**已打通 D1~D22：协议层 → 通道层 → 采集服务 → 端到端链路 → WPF 界面 + 设备配置持久化 + 实时数据表 + 实时曲线 + 历史入库与查询回放 + 上下限报警（带死区）+ Excel 报表导出，全部可跑。**
 
 | 模块 | 状态 |
 |---|---|
@@ -63,9 +63,10 @@ DeviceMonitor.sln                      # 解决方案（传统 sln 格式，VS 2
 | 历史入库：`history.db`（SQLite）+ 通道扇出 + 攒批 200 条/5s 单事务 + WAL | ✅ 完成（D19，桌面验收已过） |
 | 历史查询与曲线回放：筛选（设备 / 点位 / 时间段）+ 表格 + `ScottPlot` 曲线；查询走独立读连接 | ✅ 完成（D20，桌面验收已过） |
 | 报警模块：上下限判定 + 死区去抖 + `alarm_log` 入库 + 实时报警列表（红色高亮） | ✅ 完成（D21，桌面验收已过） |
+| Excel 报表导出：历史 + 报警两个 sheet，报警按"产生/恢复"配对给出**持续时长**（`ClosedXML`） | ✅ 完成（D22，代码链路已验证，见 HANDOFF 8.7） |
 | Excel 报表导出 | ⛔ 未开始（D22~D28） |
 
-> **待做清单**：ClosedXML 报表导出（D22）、打磨与录屏（D23~D28）。
+> **待做清单**：鲁棒性收尾与打磨、录屏、README 定稿（D23~D28）。
 >
 > 技术栈引入情况：**CommunityToolkit.Mvvm、Microsoft.Extensions.DependencyInjection、NLog
 > 已引入**；**`Microsoft.Data.Sqlite` 已引入（D19）**；`ClosedXML` 尚未引入；
@@ -87,7 +88,7 @@ dotnet test  tests/DeviceMonitor.Core.Tests/DeviceMonitor.Core.Tests.csproj   # 
 测试框架：**xunit v3 + Microsoft.Testing.Platform**（进程内运行，不依赖 VSTest testhost；
 命令行 `dotnet test` 可用，较新的 VS 2022 也能在测试资源管理器中直接发现）。
 
-当前规模：**21 个测试文件、296 个用例、0 失败**（其中 3 个端到端集成用例默认 Skip，见下）。
+当前规模：**23 个测试文件、320 个用例、0 失败**（其中 3 个端到端集成用例默认 Skip，见下）。
 覆盖范围：CRC 已知向量、组帧逐字节比对、响应解析（正常 / 异常码 / 坏 CRC / 短帧 / 粘包）、
 `FrameAssembler` 半包与失步重同步、从站读写的异常码与地址过滤、主从对拍、
 `CollectorService` 的轮询与「连续超时 → 离线 → 自动恢复」状态机、`SerialChannel` 异常映射与虚拟串口回环收发、
@@ -98,7 +99,8 @@ dotnet test  tests/DeviceMonitor.Core.Tests/DeviceMonitor.Core.Tests.csproj   # 
 历史查询纯函数（本地↔UTC 归一、降采样"首尾必留"、自定义时间文本解析）、
 真库的并发读写（采集正在写入的同时做历史查询）、
 报警（死区"进/出用两个不同阈值"的完整状态机、告警消息文本、多线程并发判定、
-派发与攒批、**样本流经 DeviceManager 泵之后报警能不能出来**的端到端用例、真库 `alarm_log` 读写）。
+派发与攒批、**样本流经 DeviceManager 泵之后报警能不能出来**的端到端用例、真库 `alarm_log` 读写）、
+报表导出（报警"产生+恢复"配对成完整事件并算持续时长、截断判定、**把生成的 xlsx 用 ClosedXML 读回来逐格核对**）。
 
 依赖虚拟串口的用例（`SerialChannelTests` / `SerialChannelLoopbackTests`）在**本机没有该端口时自动 Skip**，
 不会把测试套件拖红。端到端集成测试默认跳过，要跑它见「端到端自动化验证」。
@@ -170,10 +172,10 @@ $env:SIMULATOR_E2E = '1'; dotnet test tests/DeviceMonitor.Core.Tests
 
 ## 后续开发顺序
 
-按 `docs/DeviceMonitor-Design.md` §9 的 28 天清单推进（**D1~D21 已完成**）：
+按 `docs/DeviceMonitor-Design.md` §9 的 28 天清单推进（**D1~D22 已完成**）：
 
 ```
-Excel 报表(D22) → 打磨 / 录屏 / README(D23~D28)
+鲁棒性收尾 / 打磨 / 录屏 / README(D23~D28)
 ```
 
 > 历史库落在 `bin/.../history.db`（和 `devices.json` 同目录，单文件零部署）：
