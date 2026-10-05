@@ -130,4 +130,43 @@ public class SerialChannelTests
 
         Assert.True(second.IsOpen);
     }
+
+    /// <summary>
+    /// D23 验收：连续开关 20 次不报「端口被占用」。
+    /// 只要 Open/Close 有一次没真正释放句柄，下一轮 Open 就会抛 UnauthorizedAccessException。
+    ///
+    /// 第 1 轮失败判为"外部占用"（模拟器/串口助手正占着这个口）→ 跳过；
+    /// 第 2 轮起失败才是真泄漏 —— 这个区分很重要，否则会把环境问题误报成代码 bug。
+    /// </summary>
+    [Fact]
+    public void 连续开关_二十次_端口不泄漏()
+    {
+        if (!PortExists(VirtualPort))
+            Assert.Skip($"本机没有 {VirtualPort}");
+
+        using var channel = new SerialChannel(Config(VirtualPort));
+
+        for (int i = 1; i <= 20; i++)
+        {
+            try
+            {
+                channel.Open();
+            }
+            catch (InvalidOperationException ex) when (i == 1)
+            {
+                // 第 1 轮就打不开：是外部程序占用（此前我们根本没打开过），不是泄漏
+                Assert.Skip($"{VirtualPort} 当前被其它程序占用，跳过：{ex.Message}");
+            }
+            catch (Exception ex)
+            {
+                Assert.Fail($"第 {i} 轮 Open 失败（很可能是第 {i - 1} 轮没释放句柄）：{ex}");
+            }
+
+            Assert.True(channel.IsOpen, $"第 {i} 轮：Open 后 IsOpen 为 false");
+
+            channel.Close();
+
+            Assert.False(channel.IsOpen, $"第 {i} 轮：Close 后 IsOpen 仍为 true");
+        }
+    }
 }

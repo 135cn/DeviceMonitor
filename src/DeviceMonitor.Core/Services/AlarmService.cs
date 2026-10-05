@@ -1,4 +1,4 @@
-﻿using DeviceMonitor.Core.DataAccess;
+using DeviceMonitor.Core.DataAccess;
 using DeviceMonitor.Core.Diagnostics;
 using DeviceMonitor.Core.Models;
 using NLog;
@@ -142,13 +142,16 @@ namespace DeviceMonitor.Core.Services
             _pumpTask = null;
             _flusherTask = null;
 
-            // ★ 必须有这一步：定时冲刷循环等的是 timer.WaitForNextTickAsync(token)，
-            //   token 不取消它就会一直等下去 —— 表现是"停止时报 5 秒超时、
-            //   且 cts 永远不会被 Dispose"（任务变成孤儿）。
-            cts.Cancel();
-
-            // 让攒批泵把通道里剩下的读完：Complete 之后 ReadAllAsync 会在排空后正常结束。
+            // ★ 顺序不能反（D23 修）：
+            //   ① 先 Complete —— 让泵把通道里剩下的读完，ReadAllAsync 排空后正常结束；
+            //   ② 再 Cancel   —— 只用来停"定时冲刷循环"，它等的是 timer.WaitForNextTickAsync(token)，
+            //      不取消就会一直等下去（表现为"停止时报 5 秒超时 + cts 永不 Dispose，任务成孤儿"）。
+            //
+            //   反过来写（先 Cancel）会让泵**立刻中断**：此刻还在通道里、没搬进缓冲区的报警
+            //   永远进不了 _buffer，末尾那次 FlushAsync 自然也刷不到 —— 就是"停止时丢数据"。
+            //   这个 bug 由间歇性失败的 AlarmServiceTests.停止时冲刷余量_不满一批也不丢 暴露出来。
             _records.Writer.TryComplete();
+            cts.Cancel();
 
             bool finished = true;
             try
@@ -203,7 +206,11 @@ namespace DeviceMonitor.Core.Services
             foreach(AlarmRecord record in events)
             {
                 // 出口 1：落库流（无界，报警不丢）
-                _records.Writer.TryWrite(record);
+                // 唯一写不进去的情况是"服务已停止"（通道被 Complete）—— 属关窗竞态，
+                // 记一条日志留痕，免得变成"报警明明触发了却没入库"这种查不出来的现象。
+                if(!_records.Writer.TryWrite(record))
+                    Log.Warn("报警服务已停止，丢弃一条报警：{Kind} 点位 {Point}。",
+                        record.Kind, AppLog.Wrap(record.PointName));
 
                 // 出口 2：UI。订阅方抛异常不能把采集泵带崩 —— 一台设备的泵死了，
                 // 它的样本就再也上不了屏，而且外表完全看不出来（坑 #39 的教训）。
@@ -271,12 +278,28 @@ namespace DeviceMonitor.Core.Services
             }
             catch (OperationCanceledException)
             {
-                // 停止时正常退出
+                // 停止路径：取消会立刻中断枚举，所以这里要**补一次排空** ——
+                // 把通道里已到达、还没来得及搬进缓冲区的报警取进 _buffer，
+                // 由 StopAsync 末尾的 FlushAsync 统一写出。少这一下，这批记录就丢了。
+                DrainAvailable();
             }
             catch(Exception ex)
             {
                 // 泵死了 = 报警从此不再入库，界面上完全看不出来。必须留日志。
                 Log.Error(ex, "报警入库的消费任务异常退出，之后的报警将不再写入 alarm_log。");
+            }
+        }
+
+        /// <summary>
+        /// 把通道里现成的报警搬进缓冲区（停止路径专用；余量由 <see cref="StopAsync"/> 统一冲刷）。
+        /// 与 <see cref="HistoryService"/> 同样的理由：泵的读用 token，取消会立刻中断。
+        /// </summary>
+        private void DrainAvailable()
+        {
+            lock (_gate)
+            {
+                while(_records.Reader.TryRead(out AlarmRecord? record) && record is not null)
+                    _buffer.Add(record);
             }
         }
 

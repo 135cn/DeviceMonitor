@@ -1,4 +1,4 @@
-﻿using DeviceMonitor.Core.DataAccess;
+using DeviceMonitor.Core.DataAccess;
 using DeviceMonitor.Core.Models;
 using DeviceMonitor.Core.Services;
 using Xunit;
@@ -152,6 +152,38 @@ public class AlarmServiceTests
 
         Assert.Single(store.Alarms);
         Assert.Equal(1, service.WrittenRows);
+    }
+
+    /// <summary>
+    /// D23 回归：停止时**刚产生、还没落库**的报警不能丢。
+    ///
+    /// 修复前 StopAsync 先 Cancel 再 Complete，而泵读的是 ReadAllAsync(token)：
+    /// 停止瞬间正好停在 WaitToReadAsync 上的泵会被取消直接中断，那条刚写进通道、
+    /// 还没搬进缓冲区的记录就永远进不了 _buffer，末尾的 FlushAsync 也刷不到。
+    ///
+    /// 这是**竞态**（单次可能恰好被泵抢先搬走），所以重复多轮：任一轮丢记录即失败。
+    /// 回退修复实测：旧实现下这里稳定失败（先 Cancel 再 Complete）。
+    /// </summary>
+    [Fact]
+    public async Task 停止时_刚产生还没落库的报警也不丢()
+    {
+        const int rounds = 20;
+
+        for (int round = 1; round <= rounds; round++)
+        {
+            await using var store = new FakeAlarmStore();
+            var service = new AlarmService(store, batchSize: 1000, flushInterval: TimeSpan.FromMinutes(10));
+
+            await service.StartAsync(TestContext.Current.CancellationToken);
+
+            // 一产生就停止 —— 记录此刻只在通道里，还没被泵搬进缓冲区
+            service.Evaluate(Sample(120), Point(high: 100));
+
+            await service.StopAsync();
+
+            Assert.True(store.Alarms.Count == 1,
+                $"第 {round} 轮：停止时丢掉了一条刚产生的报警（实际落库 {store.Alarms.Count} 条）");
+        }
     }
 
     [Fact]

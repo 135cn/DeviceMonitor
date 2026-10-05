@@ -468,10 +468,23 @@ namespace DeviceMonitor.App.ViewModels
         {
             DeviceViewModel? online = Devices.FirstOrDefault(d => d.State == DeviceState.Online);
 
-            StateText = online is null
+            if (online is not null)
+            {
+                StateText = $"{online.Name}（{online.PortName}）{online.StateText} · 轮询 {online.PollIntervalText}"
+                    + $" · 最后刷新 {LastRefreshText}";
+                return;
+            }
+
+            // D23：全部离线时要把"为什么"也说出来 ——
+            // 端口被占用 / 被拔出 / 从站不响应时，这是用户唯一的线索
+            // （否则界面只显示"均未在线"，等于让人去猜）。
+            string? reason = Devices
+                .Select(d => d.LastError)
+                .FirstOrDefault(e => !string.IsNullOrWhiteSpace(e));
+
+            StateText = reason is null
                 ? $"{Devices.Count} 台设备 · 均未在线 · 最后刷新 {LastRefreshText}"
-                : $"{online.Name}（{online.PortName}）{online.StateText} · 轮询 {online.PollIntervalText}"
-                + $" · 最后刷新 {LastRefreshText}";
+                : $"{Devices.Count} 台设备 · 均未在线 · 原因：{reason}";
         }
 
 

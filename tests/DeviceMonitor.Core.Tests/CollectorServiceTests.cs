@@ -1,4 +1,4 @@
-﻿using DeviceMonitor.Core.Channels;
+using DeviceMonitor.Core.Channels;
 using DeviceMonitor.Core.Models;
 using DeviceMonitor.Core.Protocol;
 using DeviceMonitor.Core.Services;
@@ -284,6 +284,37 @@ public class CollectorServiceTests
         {
             await collector.StopAsync();
         }
+    }
+
+    /// <summary>
+    /// D23 验收：连续开关采集 20 次不报「端口被占用」。
+    /// 在服务层的表现是——每轮 Start 都能成功，且 Stop 之后通道一定处于关闭状态
+    /// （真实串口下"没关闭"就等于下一轮"被占用"）。
+    /// </summary>
+    [Fact]
+    public async Task 连续启停_二十次_每轮都能重启且通道正确释放()
+    {
+        var channel = new FakeDeviceChannel { ResponseFactory = r => BuildResponse(r, 1) };
+        var collector = new CollectorService(Config(Point()), channel);
+
+        const int cycles = 20;
+
+        for (int i = 1; i <= cycles; i++)
+        {
+            await collector.StartAsync(TestContext.Current.CancellationToken);
+
+            Assert.True(
+                await WaitUntilAsync(() => channel.IsOpen),
+                $"第 {i} 轮：启动后通道未打开");
+
+            await collector.StopAsync();
+
+            Assert.False(collector.IsRunning, $"第 {i} 轮：停止后仍在运行");
+            Assert.False(channel.IsOpen, $"第 {i} 轮：停止后通道未关闭（真实串口下就等于「端口被占用」）");
+        }
+
+        Assert.Equal(cycles, channel.OpenCount);        // 每轮恰好打开一次（没有多余的故障重连）
+        Assert.True(channel.CloseCount >= cycles);      // 每次打开都被释放
     }
 
     [Fact]

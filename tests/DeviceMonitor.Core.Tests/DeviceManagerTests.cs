@@ -222,8 +222,12 @@ public class DeviceManagerTests
         await manager.StartAllAsync(TestContext.Current.CancellationToken);
         await manager.DisposeAsync();
 
-        // 通道已 Complete → WaitToReadAsync 立即返回 false（加超时保护，避免万一没 Complete 时整个测试挂死）
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        // 通道已 Complete → 排空后 WaitToReadAsync 返回 false。
+        //
+        // ★ 超时给足 10 秒（D23 修）：原先写 2 秒，并行跑测试 + 机器繁忙时会偶发
+        //   "TaskCanceledException 而不是 false" → 变成 flaky（实测 5 次里失败 1 次）。
+        //   这里要验证的是"通道最终会 Complete"，不是"Complete 得多快"，别把时间卡紧。
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         Assert.False(await manager.Sample.WaitToReadAsync(timeout.Token));
     }
 

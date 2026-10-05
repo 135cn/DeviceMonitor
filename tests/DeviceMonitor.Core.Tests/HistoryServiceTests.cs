@@ -1,4 +1,4 @@
-﻿using DeviceMonitor.Core.DataAccess;
+using DeviceMonitor.Core.DataAccess;
 using DeviceMonitor.Core.Models;
 using DeviceMonitor.Core.Services;
 using System.Threading.Channels;
@@ -108,6 +108,28 @@ public class HistoryServiceTests
         }
 
         return condition();
+    }
+
+    /// <summary>
+    /// D23 回归：停止时**通道里还没来得及搬运**的样本也不能丢。
+    ///
+    /// 泵的读用 token，取消会立刻中断枚举 —— 不在停止前补一次排空，这批样本既不在缓冲区
+    /// （FlushAsync 刷不到）、也没进库，直接消失。用户看到的就是"采集跑几十秒就退出，
+    /// 库里少一截"。这里先把 50 条灌进通道再启动服务，然后立刻停止，构造确定性的竞态。
+    /// </summary>
+    [Fact]
+    public async Task 停止时_通道里还没搬运的样本也不丢()
+    {
+        var store = new FakeHistoryStore();
+        await using var service = new HistoryService(store, batchSize: 1000, flushInterval: TimeSpan.FromMinutes(10));
+
+        Channel<DataSample> channel = NewChannel();
+        await WriteAsync(channel, 50);      // 先灌数据：让"来不及搬运"成为必然
+
+        await service.StartAsync(channel.Reader, TestContext.Current.CancellationToken);
+        await service.StopAsync();
+
+        Assert.Equal(50, store.TotalRows);
     }
 
     [Fact]

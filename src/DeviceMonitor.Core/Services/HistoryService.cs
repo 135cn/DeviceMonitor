@@ -1,4 +1,4 @@
-﻿using DeviceMonitor.Core.DataAccess;
+using DeviceMonitor.Core.DataAccess;
 using DeviceMonitor.Core.Diagnostics;
 using DeviceMonitor.Core.Models;
 using NLog;
@@ -226,12 +226,28 @@ public sealed class HistoryService : IAsyncDisposable
         }
         catch (OperationCanceledException)
         {
-            // 停止时正常退出
+            // 停止路径：取消会立刻中断枚举，所以这里要**补一次排空** ——
+            // 把通道里已到达、还没来得及搬进缓冲区的样本取进 _buffer，
+            // 由 StopAsync 末尾的 FlushAsync 统一写出（少这一下，"刚产生就停止"的那批就丢了）。
+            // 注意：source 归 DeviceManager 所有（由它 Complete），这里只能 TryRead 取现成的。
+            DrainAvailable(source);
         }
         catch (Exception ex)
         {
             // 泵死了 = 历史从此不再记录，而界面上完全看不出来。必须留日志。
             Log.Error(ex, "历史落库的消费任务异常退出，之后的样本将不再入库。");
+        }
+    }
+
+    /// <summary>
+    /// 把通道里现成的样本搬进缓冲区（停止路径专用；余量由 <see cref="StopAsync"/> 统一冲刷）。
+    /// </summary>
+    private void DrainAvailable(ChannelReader<DataSample> source)
+    {
+        lock (_gate)
+        {
+            while (source.TryRead(out DataSample? sample) && sample is not null)
+                _buffer.Add(sample);
         }
     }
 
