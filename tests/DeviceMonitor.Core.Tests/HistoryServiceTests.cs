@@ -10,7 +10,7 @@ namespace DeviceMonitor.Core.Tests;
 ///
 /// 这里刻意用一个假 store：攒批是纯逻辑（满 N 条 / 每 5s / 停止冲刷余量），
 /// 用假实现就能精确断言"什么时候写、一次写几条"，不必碰文件系统；
-/// 真库那层（列类型、时间格式、索引、WAL）由 <see cref="SqliteHistoryStoreTests"/> 单独覆盖。
+/// 真库那层（列类型、时间格式、索引、WAL）由 <see cref="EfCoreHistoryStoreTests"/> 单独覆盖。
 /// </summary>
 public class HistoryServiceTests
 {

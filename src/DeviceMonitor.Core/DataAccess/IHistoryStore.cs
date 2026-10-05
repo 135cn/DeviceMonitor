@@ -1,4 +1,4 @@
-﻿using DeviceMonitor.Core.Models;
+using DeviceMonitor.Core.Models;
 
 namespace DeviceMonitor.Core.DataAccess;
 
@@ -8,7 +8,10 @@ namespace DeviceMonitor.Core.DataAccess;
 /// **为什么要抽接口**：攒批规则（满 <c>N</c> 条 / 每 <c>5s</c> / 停止时冲刷余量）是纯逻辑，
 /// 抽出来之后 <see cref="Services.HistoryService"/> 的批处理行为可以用一个假实现单测，
 /// **完全不碰文件系统**；而 SQLite 那层的列类型、时间格式、索引是否真的建上，
-/// 由 <c>SqliteHistoryStoreTests</c> 用真库单独覆盖。两层各测各的，失败时定位极快。
+/// 由 <c>EfCoreHistoryStoreTests</c> 用真库单独覆盖。两层各测各的，失败时定位极快。
+///
+/// 这层抽象还额外收过一次利息：D23 把存储从手写 SQL 换成 EF Core 时，
+/// 上层的 HistoryService / AlarmService / ExportService / 历史查询窗**一行都没改**。
 /// </summary>
 public interface IHistoryStore : IAsyncDisposable
 {

@@ -66,14 +66,14 @@ public partial class App : Application
 
         // ----历史库（样本 + 报警共用同一个库文件）----
         // 库文件放 exe 同目录（和 devices.json 一样），保持"单文件零部署"。
-        // ★ 两个存储接口必须解析到**同一个 SqliteHistoryStore 实例**：
+        // ★ 两个存储接口必须解析到**同一个实例**：
         //   各 new 一个的话，样本写和报警写会各持一条连接、各有一把写锁 —— 锁不互斥，
         //   两个事务真的会并发撞库。所以先注册具体类型，再让两个接口都转发到它。
-        services.AddSingleton(_ => new SqliteHistoryStore(
+        services.AddSingleton(_ => new EfCoreHistoryStore(
             Path.Combine(AppContext.BaseDirectory, "history.db")));
 
-        services.AddSingleton<IHistoryStore>(p => p.GetRequiredService<SqliteHistoryStore>());
-        services.AddSingleton<IAlarmStore>(p => p.GetRequiredService<SqliteHistoryStore>());
+        services.AddSingleton<IHistoryStore>(p => p.GetRequiredService<EfCoreHistoryStore>());
+        services.AddSingleton<IAlarmStore>(p => p.GetRequiredService<EfCoreHistoryStore>());
 
         // 注册顺序是有意的：容器**按逆序释放**，于是退出时是
         //   「两个服务各自冲刷余量 → 关库 → 拆采集」

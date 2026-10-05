@@ -1,23 +1,27 @@
-﻿using DeviceMonitor.Core.DataAccess;
+using DeviceMonitor.Core.DataAccess;
 using DeviceMonitor.Core.Models;
 using Microsoft.Data.Sqlite;
 
 namespace DeviceMonitor.Core.Tests;
 
 /// <summary>
-/// 真 SQLite 的历史库测试（D19）：建表幂等、批量写、按条件查回、索引与 WAL 是否真的生效。
+/// 真 SQLite 的历史库测试（D19；存储层已于 D23 换成 EF Core）：
+/// 建表幂等、批量写、按条件查回、索引与 WAL 是否真的生效。
+///
+/// ★ 断言**一条都没放宽** —— 换实现不该改变对外语义（闭区间、升序、limit、
+///   未初始化抛异常、并发读写互不干扰）。这些用例正是"换 EF Core 没换坏"的证据。
 ///
 /// 每条测试用独立临时目录（与 <see cref="JsonDeviceConfigStoreTests"/> 同一套做法），
 /// 互不干扰也不需要硬件。
 /// </summary>
-public class SqliteHistoryStoreTests : IDisposable
+public class EfCoreHistoryStoreTests : IDisposable
 {
     private static readonly DateTime T0 = new(2026, 9, 26, 2, 0, 0, DateTimeKind.Utc);
 
     private readonly string _dir;
     private readonly string _dbPath;
 
-    public SqliteHistoryStoreTests()
+    public EfCoreHistoryStoreTests()
     {
         _dir = Path.Combine(Path.GetTempPath(), "dm-history-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_dir);
@@ -55,7 +59,7 @@ public class SqliteHistoryStoreTests : IDisposable
     [Fact]
     public async Task 初始化幂等_重复调用不抛且表已建好()
     {
-        await using var store = new SqliteHistoryStore(_dbPath);
+        await using var store = new EfCoreHistoryStore(_dbPath);
 
         await store.InitializeAsync(TestContext.Current.CancellationToken);
         await store.InitializeAsync(TestContext.Current.CancellationToken);   // 第二次必须是空操作
@@ -67,7 +71,7 @@ public class SqliteHistoryStoreTests : IDisposable
     [Fact]
     public async Task 批量写入_能按设备与点位查回_且按时间升序()
     {
-        await using var store = new SqliteHistoryStore(_dbPath);
+        await using var store = new EfCoreHistoryStore(_dbPath);
         await store.InitializeAsync(TestContext.Current.CancellationToken);
 
         int written = await store.WriteBatchAsync(
@@ -105,7 +109,7 @@ public class SqliteHistoryStoreTests : IDisposable
     [Fact]
     public async Task 时间区间是闭区间_两端都包含()
     {
-        await using var store = new SqliteHistoryStore(_dbPath);
+        await using var store = new EfCoreHistoryStore(_dbPath);
         await store.InitializeAsync(TestContext.Current.CancellationToken);
 
         await store.WriteBatchAsync(
@@ -124,7 +128,7 @@ public class SqliteHistoryStoreTests : IDisposable
     [Fact]
     public async Task limit_限制返回行数()
     {
-        await using var store = new SqliteHistoryStore(_dbPath);
+        await using var store = new EfCoreHistoryStore(_dbPath);
         await store.InitializeAsync(TestContext.Current.CancellationToken);
 
         await store.WriteBatchAsync(
@@ -141,7 +145,7 @@ public class SqliteHistoryStoreTests : IDisposable
     [Fact]
     public async Task 表结构与索引_与设计文档一致()
     {
-        await using var store = new SqliteHistoryStore(_dbPath);
+        await using var store = new EfCoreHistoryStore(_dbPath);
         await store.InitializeAsync(TestContext.Current.CancellationToken);
 
         string? indexes = await QueryScalarAsync(
@@ -161,7 +165,7 @@ public class SqliteHistoryStoreTests : IDisposable
     [Fact]
     public async Task 启用了WAL_读写不互锁()
     {
-        await using var store = new SqliteHistoryStore(_dbPath);
+        await using var store = new EfCoreHistoryStore(_dbPath);
         await store.InitializeAsync(TestContext.Current.CancellationToken);
 
         // WAL 是**写进库文件头**的模式，所以另开连接也能读到 —— 这条断言才算数
@@ -173,7 +177,7 @@ public class SqliteHistoryStoreTests : IDisposable
     [Fact]
     public async Task 重新打开同一个库_数据仍在()
     {
-        await using (var store = new SqliteHistoryStore(_dbPath))
+        await using (var store = new EfCoreHistoryStore(_dbPath))
         {
             await store.InitializeAsync(TestContext.Current.CancellationToken);
             await store.WriteBatchAsync(
@@ -181,7 +185,7 @@ public class SqliteHistoryStoreTests : IDisposable
                 TestContext.Current.CancellationToken);
         }
 
-        await using (var reopened = new SqliteHistoryStore(_dbPath))
+        await using (var reopened = new EfCoreHistoryStore(_dbPath))
         {
             await reopened.InitializeAsync(TestContext.Current.CancellationToken);   // 建表语句必须幂等
 
@@ -189,10 +193,71 @@ public class SqliteHistoryStoreTests : IDisposable
         }
     }
 
+    /// <summary>
+    /// ★ 零迁移之一：D19 那版**手写 SQL** 建的库（已经采集过的 history.db）必须能被 EF Core 直接读出来。
+    ///
+    /// 这里绕过 EF，用裸 SQL 按老 schema + 老格式写入，再用 EF 读 —— 一旦有人改了
+    /// <c>DeviceMonitorDbContext.SchemaDdl</c> 或不写 UtcTsConverter（EF 默认时间格式
+    /// 是 <c>yyyy-MM-dd HH:mm:ss.fffffff</c>，长度不固定），这条会立刻失败。
+    /// </summary>
+    [Fact]
+    public async Task 零迁移_手写SQL建的老库_EFCore也能读()
+    {
+        await using (var connection = new SqliteConnection($"Data Source={_dbPath}"))
+        {
+            await connection.OpenAsync(TestContext.Current.CancellationToken);
+
+            await using SqliteCommand cmd = connection.CreateCommand();
+            cmd.CommandText =
+                "CREATE TABLE IF NOT EXISTS history(" +
+                "  id INTEGER PRIMARY KEY AUTOINCREMENT," +
+                "  ts TEXT NOT NULL," +
+                "  device_id TEXT NOT NULL," +
+                "  point_id  TEXT NOT NULL," +
+                "  value     REAL NOT NULL);" +
+                "INSERT INTO history(ts, device_id, point_id, value)" +
+                " VALUES ('2026-09-26T02:00:01.500Z', 'dev-old', 'pt-old', 42.5);";
+            await cmd.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
+        }
+
+        await using var store = new EfCoreHistoryStore(_dbPath);
+        await store.InitializeAsync(TestContext.Current.CancellationToken);
+
+        IReadOnlyList<HistorySample> rows = await store.QueryAsync(
+            "dev-old", "pt-old", T0.AddDays(-1), T0.AddDays(1), 100,
+            TestContext.Current.CancellationToken);
+
+        HistorySample row = Assert.Single(rows);
+        Assert.Equal(42.5, row.Value);
+        Assert.Equal(DateTimeKind.Utc, row.TsUtc.Kind);
+        Assert.Equal(new DateTime(2026, 9, 26, 2, 0, 1, 500, DateTimeKind.Utc), row.TsUtc);
+    }
+
+    /// <summary>
+    /// ★ 零迁移之二：EF Core 写出来的时间戳，必须仍是**老格式的定长 ISO8601 + Z**。
+    ///
+    /// 这条同时保证两件事：
+    ///   1. 反向兼容 —— 老版本的代码 / DB 工具 / 已导出的脚本还能看懂这个库；
+    ///   2. 索引有效 —— 定长字符串的比较等价于时间比较，`ts &gt;= ? AND ts &lt;= ?` 才能走索引。
+    /// </summary>
+    [Fact]
+    public async Task EF写入的时间戳_仍是定长ISO8601加Z()
+    {
+        await using var store = new EfCoreHistoryStore(_dbPath);
+        await store.InitializeAsync(TestContext.Current.CancellationToken);
+
+        await store.WriteBatchAsync(
+            [Sample("dev-A", "pt-1", T0, 1)], TestContext.Current.CancellationToken);
+
+        string? stored = await QueryScalarAsync("SELECT ts FROM history LIMIT 1;");
+
+        Assert.Equal("2026-09-26T02:00:00.000Z", stored);
+    }
+
     [Fact]
     public async Task 空批次_返回0且不开事务()
     {
-        await using var store = new SqliteHistoryStore(_dbPath);
+        await using var store = new EfCoreHistoryStore(_dbPath);
         await store.InitializeAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(0, await store.WriteBatchAsync([], TestContext.Current.CancellationToken));
@@ -202,7 +267,7 @@ public class SqliteHistoryStoreTests : IDisposable
     [Fact]
     public async Task 未初始化就访问_抛InvalidOperationException()
     {
-        await using var store = new SqliteHistoryStore(_dbPath);
+        await using var store = new EfCoreHistoryStore(_dbPath);
 
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => store.WriteBatchAsync([Sample("dev-A", "pt-1", T0, 1)], TestContext.Current.CancellationToken));
@@ -214,7 +279,7 @@ public class SqliteHistoryStoreTests : IDisposable
     [Fact]
     public async Task 采集写入与历史查询并发_互不干扰()
     {
-        await using var store = new SqliteHistoryStore(_dbPath);
+        await using var store = new EfCoreHistoryStore(_dbPath);
         await store.InitializeAsync(TestContext.Current.CancellationToken);
 
         await store.WriteBatchAsync(
@@ -282,7 +347,7 @@ public class SqliteHistoryStoreTests : IDisposable
     [Fact]
     public async Task 报警_批量写入后能按设备查回且按时间升序()
     {
-        await using var store = new SqliteHistoryStore(_dbPath);
+        await using var store = new EfCoreHistoryStore(_dbPath);
         await store.InitializeAsync(TestContext.Current.CancellationToken);
 
         await store.WriteAlarmAsync(
@@ -306,7 +371,7 @@ public class SqliteHistoryStoreTests : IDisposable
     {
         // ★ 坑 #42 的回归保险：时间参数若不走 ToIso（定长 ISO8601 带 Z），
         //   区间查询会恒返回 0 条 —— 而写入、计数全都正常，极难发现。
-        await using var store = new SqliteHistoryStore(_dbPath);
+        await using var store = new EfCoreHistoryStore(_dbPath);
         await store.InitializeAsync(TestContext.Current.CancellationToken);
 
         await store.WriteAlarmAsync(
@@ -326,7 +391,7 @@ public class SqliteHistoryStoreTests : IDisposable
     [Fact]
     public async Task 报警_点位过滤生效()
     {
-        await using var store = new SqliteHistoryStore(_dbPath);
+        await using var store = new EfCoreHistoryStore(_dbPath);
         await store.InitializeAsync(TestContext.Current.CancellationToken);
 
         await store.WriteAlarmAsync(
@@ -345,7 +410,7 @@ public class SqliteHistoryStoreTests : IDisposable
     [Fact]
     public async Task 报警_空批次返回0且不开事务()
     {
-        await using var store = new SqliteHistoryStore(_dbPath);
+        await using var store = new EfCoreHistoryStore(_dbPath);
         await store.InitializeAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(0, await store.WriteAlarmAsync([], TestContext.Current.CancellationToken));
@@ -354,7 +419,7 @@ public class SqliteHistoryStoreTests : IDisposable
     [Fact]
     public async Task 报警_表与索引真的建上了()
     {
-        await using var store = new SqliteHistoryStore(_dbPath);
+        await using var store = new EfCoreHistoryStore(_dbPath);
         await store.InitializeAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal("alarm_log",
@@ -368,9 +433,9 @@ public class SqliteHistoryStoreTests : IDisposable
     [Fact]
     public async Task 报警与样本_两条写入路径并发也不撞库()
     {
-        // 两条路径共用 SqliteHistoryStore 的同一把 _writeLock。这条同样是**冒烟**性质：
+        // 两条路径共用 EfCoreHistoryStore 的同一把 _writeLock。这条同样是**冒烟**性质：
         // 真出问题（锁没串行化）表现为偶发的 database is locked，不是每次都能复现。
-        await using var store = new SqliteHistoryStore(_dbPath);
+        await using var store = new EfCoreHistoryStore(_dbPath);
         await store.InitializeAsync(TestContext.Current.CancellationToken);
 
         Task samples = Task.Run(async () =>

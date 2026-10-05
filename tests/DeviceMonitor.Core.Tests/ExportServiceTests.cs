@@ -1,4 +1,4 @@
-﻿using ClosedXML.Excel;
+using ClosedXML.Excel;
 using DeviceMonitor.Core.DataAccess;
 using DeviceMonitor.Core.Models;
 using DeviceMonitor.Core.Services;
@@ -332,7 +332,7 @@ public class ExportServiceTests : IDisposable
 
     // ---------------- 假 store ----------------
 
-    /// <summary>两个接口都由它实现（真实实现里也是同一个 SqliteHistoryStore）。</summary>
+    /// <summary>两个接口都由它实现（真实实现里也是同一个 EfCoreHistoryStore）。</summary>
     private sealed class FakeStore : IHistoryStore, IAlarmStore
     {
         public List<HistorySample> History { get; } = [];
