@@ -60,8 +60,8 @@ DeviceMonitor.sln                      # 解决方案（传统 sln 格式，VS 2
 | `Services/JsonDeviceConfigStore`（`devices.json` 持久化）+ 设备增删改窗口 | ✅ 完成（D16，桌面验收已过） |
 | 实时数据表：在线状态圆点 + 报警灯 + 数值列格式化（`AlarmLimits` 限值判定） | ✅ 完成（D17，桌面验收已过） |
 | 实时曲线：`ScottPlot.WPF` + 滚动窗口（每系列定长 300 点）+ 复用主 VM 的 150ms 节流 | ✅ 完成（D18，桌面验收已过） |
-| 历史入库：`history.db`（SQLite）+ 通道扇出 + 攒批 200 条/5s 单事务 + WAL | ✅ 完成（D19，桌面验收已过） |
-| 历史查询与曲线回放：筛选（设备 / 点位 / 时间段）+ 表格 + `ScottPlot` 曲线；查询走独立读连接 | ✅ 完成（D20，桌面验收已过） |
+| 历史入库：`history.db`（SQLite + **EF Core**）+ 通道扇出 + 攒批 200 条/5s 单事务 + WAL | ✅ 完成（D19 手写 SQL；D23 换 EF Core，库格式零迁移） |
+| 历史查询与曲线回放：筛选（设备 / 点位 / 时间段）+ 表格 + `ScottPlot` 曲线；查询走 EF Core 短生命周期上下文（连接由池提供，与采集写入并发） | ✅ 完成（D20，桌面验收已过） |
 | 报警模块：上下限判定 + 死区去抖 + `alarm_log` 入库 + 实时报警列表（红色高亮） | ✅ 完成（D21，桌面验收已过） |
 | Excel 报表导出：历史 + 报警两个 sheet，报警按"产生/恢复"配对给出**持续时长**（`ClosedXML`） | ✅ 完成（D22，代码链路已验证，见 HANDOFF 8.7） |
 | Excel 报表导出 | ⛔ 未开始（D22~D28） |
@@ -69,8 +69,8 @@ DeviceMonitor.sln                      # 解决方案（传统 sln 格式，VS 2
 > **待做清单**：鲁棒性收尾与打磨、录屏、README 定稿（D23~D28）。
 >
 > 技术栈引入情况：**CommunityToolkit.Mvvm、Microsoft.Extensions.DependencyInjection、NLog
-> 已引入**；**`Microsoft.Data.Sqlite` 已引入（D19）**；`ClosedXML` 尚未引入；
-> 绘图库已按 D18 要求换成 **`ScottPlot.WPF`**。
+> 已引入**；**存储层已换成 `Microsoft.EntityFrameworkCore.Sqlite`（EF Core，D23）**；
+> Excel 导出用 `ClosedXML`（已引入，D22）；绘图库为 **`ScottPlot.WPF`**（D18）。
 
 ## 环境要求
 
@@ -127,9 +127,16 @@ dotnet build DeviceMonitor.sln --no-restore
 > 并已还原进本机 NuGet 缓存，离线可构建。绘图库只有界面层需要，
 > Core / Simulator / MasterConsole / Tests 都不引用它。
 >
-> **`Microsoft.Data.Sqlite`**（D19 历史库用，8.0.6）加在 `DeviceMonitor.Core` 上，
-> 依赖 `Microsoft.Data.Sqlite.Core` + `SQLitePCLRaw.bundle_e_sqlite3`（含 Windows x64 原生库），
-> 也已进缓存、离线可构建。它属于数据访问，**与 UI/绘图无关**（不违反"Core 不引用 WPF"这条）。
+> **`Microsoft.EntityFrameworkCore.Sqlite`**（历史库用，8.0.6）加在 `DeviceMonitor.Core` 上。
+> 存储层演进：D19 是 `Microsoft.Data.Sqlite` 手写参数化 SQL，**D23 换成 EF Core**。
+> 传递依赖是 `Microsoft.EntityFrameworkCore` + `Microsoft.Data.Sqlite`
+> （→ `SQLitePCLRaw.bundle_e_sqlite3`，含 Windows x64 原生库），已进缓存、离线可构建。
+> 它属于数据访问，**与 UI/绘图无关**（不违反"Core 不引用 WPF"这条）。
+>
+> ★ 表结构、时间列格式（定长 `yyyy-MM-ddTHH:mm:ss.fffZ`）与索引名全部沿用 D19 那一版
+> （`DeviceMonitorDbContext.SchemaDdl` + `UtcTsConverter`），所以**老的 `history.db` 不需要迁移**；
+> 有两条测试专门钉这件事（`零迁移_手写SQL建的老库_EFCore也能读`、
+> `EF写入的时间戳_仍是定长ISO8601加Z`）。
 
 ## 演示方式
 

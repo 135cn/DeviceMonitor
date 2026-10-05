@@ -69,7 +69,7 @@
 | CommunityToolkit.Mvvm | MVVM | 源生成器（`[ObservableProperty]`/`[RelayCommand]`），少写样板代码，是当前主流 |
 | Microsoft.Extensions.DependencyInjection | 依赖注入 | 服务解耦，简历上常见关键词 |
 | ScottPlot | 实时曲线 | 免费、渲染快、简单；备选 LiveCharts2/OxyPlot |
-| Microsoft.Data.Sqlite | 历史存储 | 单文件零部署，适合上位机；上位机岗位常考"为什么用 SQLite" |
+| Microsoft.Data.Sqlite + EF Core | 历史存储 | 单文件零部署，适合上位机；上位机岗位常考"为什么用 SQLite"。D23 在**保持库文件格式不变**（表结构 / 定长时间列 / 索引名全部沿用）的前提下把访问层换成 `Microsoft.EntityFrameworkCore.Sqlite`：查询用 LINQ、连接生命周期交给框架；写入仍是攒批 + 单事务，并关掉变更跟踪以保证批量插入性能 |
 | ClosedXML | Excel 报表 | 免装 Office，导出 .xlsx |
 | NLog | 运行日志 | 简单实用；备选 Serilog |
 | xUnit | 单元测试 | 与协议层解耦，纯逻辑可测 |
