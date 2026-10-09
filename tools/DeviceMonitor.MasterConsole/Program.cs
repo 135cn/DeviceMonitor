@@ -1,8 +1,8 @@
 ﻿// ============================================================================
-// DeviceMonitor.MasterConsole —— 控制台主站（D12~D14 的验证/演示工具）
+// DeviceMonitor.MasterConsole —— 控制台主站（验证/演示工具）
 //
 // 用 Core 的 CollectorService + SerialChannel 轮询从站并打印样本。
-// WPF 界面（D15+）之前，用它验证整条链路：
+// WPF 界面之前，用它验证整条链路：
 //   CollectorService → SerialChannel → 虚拟串口 → 模拟器 → 响应 → 解析 → 样本通道
 //
 // 端口约定（全项目统一）：COM9 = 主站/上位机侧，COM10 = 从站/模拟器侧
@@ -88,7 +88,7 @@ using var channel = new SerialChannel(config);
 var collector = new CollectorService(config, channel);
 
 // 状态变化（Connecting/Online/Error/Offline）→ 打印。
-// D13 要观察的"关掉模拟器 → 离线，再启动 → 自动恢复"就靠这一行。
+// 要观察的"关掉模拟器 → 离线，再启动 → 自动恢复"就靠这一行。
 collector.StatusChanged += runtime =>
     Console.WriteLine($"[状态] {runtime.State,-10} 连续错误={runtime.ConsecutiveErrors}" +
                       (runtime.LastError is null ? "" : $"  原因：{runtime.LastError}"));

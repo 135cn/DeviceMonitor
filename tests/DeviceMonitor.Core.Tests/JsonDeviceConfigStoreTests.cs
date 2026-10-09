@@ -4,7 +4,7 @@ using DeviceMonitor.Core.Services;
 namespace DeviceMonitor.Core.Tests;
 
 /// <summary>
-/// devices.json 持久化测试（D16）：往返、容错、坏文件备份。
+/// devices.json 持久化测试：往返、容错、坏文件备份。
 /// 每条测试都用独立临时目录，互不干扰，也不需要硬件。
 /// </summary>
 public class JsonDeviceConfigStoreTests : IDisposable

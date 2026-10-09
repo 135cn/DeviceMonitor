@@ -5,7 +5,7 @@ using System.IO.Ports;
 namespace DeviceMonitor.Core.Tests;
 
 /// <summary>
-/// SerialChannel 的 D8 测试：状态、幂等、异常映射。
+/// SerialChannel 的测试：状态、幂等、异常映射。
 ///
 /// 说明：串口相关用例需要本机存在虚拟串口（推荐用 VSPD 建一对 COM9 ↔ COM10），
 /// 没有对应端口时用 Assert.Skip 跳过，不会把测试套件拖红。
@@ -132,7 +132,7 @@ public class SerialChannelTests
     }
 
     /// <summary>
-    /// D23 验收：连续开关 20 次不报「端口被占用」。
+    /// 验收：连续开关 20 次不报「端口被占用」。
     /// 只要 Open/Close 有一次没真正释放句柄，下一轮 Open 就会抛 UnauthorizedAccessException。
     ///
     /// 第 1 轮失败判为"外部占用"（模拟器/串口助手正占着这个口）→ 跳过；

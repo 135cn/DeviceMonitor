@@ -7,11 +7,11 @@ using System.Threading.Tasks;
 namespace DeviceMonitor.Core.Models
 {
     /// <summary>
-    /// 一条**完整的报警事件**：从触发到恢复（D22）。
+    /// 一条**完整的报警事件**：从触发到恢复。
     ///
     /// 为什么要有它：<c>alarm_log</c> 存的是**记录流**（产生一条、恢复一条），
     /// 而报表的读者想知道的是"这次报警**持续了多久**"。两者之间差一步配对 ——
-    /// 这正是 D21 当初坚持"恢复也记一条"的原因：没有 Recovered，这个时长根本算不出来。
+    /// 这正是当初坚持"恢复也记一条"的原因：没有 Recovered，这个时长根本算不出来。
     /// </summary>
     /// <param name="Kind">方向，只会是 <see cref="AlarmKind.High"/> 或 <see cref="AlarmKind.Low"/>。</param>
     /// <param name="EndUtc">恢复时刻；<c>null</c> 表示到导出这一刻**仍未恢复**（还在报警中）。</param>
@@ -40,7 +40,7 @@ namespace DeviceMonitor.Core.Models
 
 
     /// <summary>
-    /// 把报警记录流配成一条条 <see cref="AlarmEpisode"/>（D22）。
+    /// 把报警记录流配成一条条 <see cref="AlarmEpisode"/>。
     ///
     /// 纯函数：无 IO、无线程、输入有序即输出确定 —— 所以配对规则可以完整单测。
     /// </summary>

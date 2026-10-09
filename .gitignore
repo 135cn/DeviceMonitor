@@ -487,3 +487,17 @@ $RECYCLE.BIN/
 # 本地工具工作目录（不进版本库）
 .workbuddy/
 
+
+# ---- 本地工作目录与个人笔记（保留在本地，不进仓库）----
+.analysis/
+docs/HANDOFF.md
+docs/DeviceMonitor-同类项目调研.md
+*.db
+*.db-wal
+*.db-shm
+
+
+# 由源码生成的参考手册（体积大、易过期，留在本地）
+docs/DeviceMonitor-类参考手册.md
+docs/DeviceMonitor-命名空间参考手册.md
+

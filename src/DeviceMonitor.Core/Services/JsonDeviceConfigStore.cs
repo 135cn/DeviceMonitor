@@ -17,7 +17,7 @@ namespace DeviceMonitor.Core.Services
     ///   - 枚举转字符串（<c>JsonStringEnumConverter</c>）：Parity/StopBits 存成 "None"/"One"，
     ///     比存数字 0/1 直观，且将来改枚举顺序不会把老配置文件读错。
     ///
-    /// 容错策略（这是本类的重点，面试可讲）：
+    /// 容错策略（本类的重点）：
     ///   - 文件不存在        → 落一份内置演示设备，保证"首次启动就有东西可点"；
     ///   - JSON 解析失败     → 把坏文件改名成 devices.bad-{时间戳}.json **备份**再重建，
     ///                         绝不静默覆盖用户数据，也不让软件启动失败；

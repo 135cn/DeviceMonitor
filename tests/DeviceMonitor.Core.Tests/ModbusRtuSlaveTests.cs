@@ -3,7 +3,7 @@
 namespace DeviceMonitor.Core.Tests;
 
 /// <summary>
-/// ModbusRtuSlave 从站测试（D11）：读/写/异常码/地址过滤/坏 CRC，以及主从对拍。
+/// ModbusRtuSlave 从站测试：读/写/异常码/地址过滤/坏 CRC，以及主从对拍。
 /// 全部是纯内存测试，不依赖串口和虚拟串口。
 /// </summary>
 public class ModbusRtuSlaveTests

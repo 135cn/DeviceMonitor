@@ -4,7 +4,7 @@ using System.Text.Json;
 namespace DeviceMonitor.Core.Tests;
 
 /// <summary>
-/// Models JSON 序列化往返测试：设备配置要能存成 devices.json 并重新加载（D16 依赖）。
+/// Models JSON 序列化往返测试：设备配置要能存成 devices.json 并重新加载。
 /// </summary>
 public class ModelsJsonTests
 {

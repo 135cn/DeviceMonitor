@@ -5,7 +5,7 @@ using Microsoft.Data.Sqlite;
 namespace DeviceMonitor.Core.Tests;
 
 /// <summary>
-/// 真 SQLite 的历史库测试（D19；存储层已于 D23 换成 EF Core）：
+/// 真 SQLite 的历史库测试（；存储层已于换成 EF Core）：
 /// 建表幂等、批量写、按条件查回、索引与 WAL 是否真的生效。
 ///
 /// ★ 断言**一条都没放宽** —— 换实现不该改变对外语义（闭区间、升序、limit、
@@ -194,7 +194,7 @@ public class EfCoreHistoryStoreTests : IDisposable
     }
 
     /// <summary>
-    /// ★ 零迁移之一：D19 那版**手写 SQL** 建的库（已经采集过的 history.db）必须能被 EF Core 直接读出来。
+    /// ★ 零迁移之一：那版**手写 SQL** 建的库（已经采集过的 history.db）必须能被 EF Core 直接读出来。
     ///
     /// 这里绕过 EF，用裸 SQL 按老 schema + 老格式写入，再用 EF 读 —— 一旦有人改了
     /// <c>DeviceMonitorDbContext.SchemaDdl</c> 或不写 UtcTsConverter（EF 默认时间格式
@@ -339,7 +339,7 @@ public class EfCoreHistoryStoreTests : IDisposable
             $"并发读写出现异常（读 {readErrors} 次 / 写 {writeErrors} 次）：{string.Join("; ", errors)}");
     }
 
-    // ---------------- 报警表（D21） ----------------
+    // ---------------- 报警表 ----------------
 
     private static AlarmRecord Alarm(string deviceId, string pointId, DateTime utc, double value, AlarmKind kind)
         => new(utc, deviceId, pointId, "温度", value, kind, $"{kind} @ {value}");
@@ -363,13 +363,13 @@ public class EfCoreHistoryStoreTests : IDisposable
         Assert.Equal(2, byDevice.Count);
         Assert.Equal(AlarmKind.High, byDevice[0].Kind);
         Assert.Equal(AlarmKind.Recovered, byDevice[1].Kind);
-        Assert.Equal("温度", byDevice[0].PointName);       // 点名是 D21 特意多存的一列
+        Assert.Equal("温度", byDevice[0].PointName);       // 点名是报警表特意多存的一列
     }
 
     [Fact]
     public async Task 报警_时间区间过滤有效()
     {
-        // ★ 坑 #42 的回归保险：时间参数若不走 ToIso（定长 ISO8601 带 Z），
+        // ★ 回归保险：时间参数若不走 ToIso（定长 ISO8601 带 Z），
         //   区间查询会恒返回 0 条 —— 而写入、计数全都正常，极难发现。
         await using var store = new EfCoreHistoryStore(_dbPath);
         await store.InitializeAsync(TestContext.Current.CancellationToken);

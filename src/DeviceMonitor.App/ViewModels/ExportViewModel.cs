@@ -14,9 +14,9 @@ using System.Threading.Tasks;
 namespace DeviceMonitor.App.ViewModels
 {
     /// <summary>
-    /// 「导出报表」对话框的 VM（D22）。
+    /// 「导出报表」对话框的 VM。
     ///
-    /// 时间窗的处理**刻意和 D20 的历史查询窗保持一致**（预设 + 自定义文本，一律经
+    /// 时间窗的处理**刻意和历史查询窗保持一致**（预设 + 自定义文本，一律经
     /// <see cref="Core.DataAccess.HistoryQuery.ToUtc"/> 换算）—— 同一个软件里两处选时间的方式
     /// 不该有两种习惯，出错的姿势也该只有一种。
     /// </summary>

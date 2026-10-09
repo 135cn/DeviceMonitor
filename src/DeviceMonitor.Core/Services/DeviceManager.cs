@@ -74,8 +74,8 @@ namespace DeviceMonitor.Core.Services
         private long _droppedHistorySamples;
 
         /// <summary>
-        /// 报警判定（D21）。**可空** —— 报警是可选的旁路，不带它时 DeviceManager 的行为
-        /// 与 D19 完全一致（现有很多测试就是这么 new 出来的，不必为此都去造一个 store）。
+        /// 报警判定。**可空** —— 报警是可选的旁路，不带它时 DeviceManager 的行为
+        /// 与完全一致（现有很多测试就是这么 new 出来的，不必为此都去造一个 store）。
         /// </summary>
         private readonly AlarmService? _alarm;
 
@@ -138,7 +138,7 @@ namespace DeviceMonitor.Core.Services
         public ChannelReader<DataSample> Sample => _samples.Reader;
 
         /// <summary>
-        /// 历史落库专用流（D19）。**只给 HistoryService 一个消费者**，见 <see cref="_historySamples"/> 注释。
+        /// 历史落库专用流。**只给 HistoryService 一个消费者**，见 <see cref="_historySamples"/> 注释。
         /// </summary>
         public ChannelReader<DataSample> HistorySamples => _historySamples.Reader;
 
@@ -253,7 +253,7 @@ namespace DeviceMonitor.Core.Services
             lock (_gate)
                 _samplePumps.Remove(deviceId);
 
-            // ★ D21：把该设备的报警状态位一并清掉 —— 否则设备重加回来会"带着上一轮的报警"，
+            // ★ 把该设备的报警状态位一并清掉 —— 否则设备重加回来会"带着上一轮的报警"，
             //   而且反复增删设备会让状态字典无限增长。
             _alarm?.ForgetDevice(deviceId);
 
@@ -471,7 +471,7 @@ namespace DeviceMonitor.Core.Services
                         if (!_historySamples.Writer.TryWrite(sample))
                             CountHistoryDrop();
 
-                        // ★ D21 报警判定挂在这里，而不是 CollectorService：这里是样本的**唯一汇聚点**，
+                        // ★ 报警判定挂在这里，而不是 CollectorService：这里是样本的**唯一汇聚点**，
                         //   已经同时握着样本、设备配置和点位索引 —— 不必再给报警单独开一条通道。
                         //   判定是纯内存操作 + 无界通道 TryWrite，不会拖慢采集节拍。
                         if (_alarm is not null && pointsById.TryGetValue(sample.PointId, out PointConfig? point))

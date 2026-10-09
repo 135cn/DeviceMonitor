@@ -84,7 +84,7 @@ namespace DeviceMonitor.App.ViewModels
                 return;
 
             // ★ 必须 ToLocalTime()：DataSample.Utc 来自 DateTime.UtcNow，
-            //   直接画到时间轴上会整体偏 8 小时（D17 在表格上踩过同一个坑）。
+            //   直接画到时间轴上会整体偏 8 小时（在表格上踩过同一个坑）。
             streamer.Add(sample.Utc.ToLocalTime(), sample.Display);
         }
 

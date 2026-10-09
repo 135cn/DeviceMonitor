@@ -10,7 +10,7 @@ public enum DeviceState
 }
 
 /// <summary>
-/// 设备运行时状态（D10 起由 CollectorService 更新，UI 侧绑定显示）。
+/// 设备运行时状态（起由 CollectorService 更新，UI 侧绑定显示）。
 /// </summary>
 public sealed class DeviceRuntime
 {

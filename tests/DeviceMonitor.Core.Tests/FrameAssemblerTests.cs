@@ -3,7 +3,7 @@
 namespace DeviceMonitor.Core.Tests;
 
 /// <summary>
-/// FrameAssembler 组装测试（D6）：半包、粘包、失步重同步、帧间空闲判界。
+/// FrameAssembler 组装测试：半包、粘包、失步重同步、帧间空闲判界。
 /// 时间用 FakeClock 注入，测试不依赖真实时钟。
 /// </summary>
 public class FrameAssemblerTests

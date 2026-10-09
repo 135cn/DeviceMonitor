@@ -7,7 +7,7 @@ using NLog;
 namespace DeviceMonitor.Core.DataAccess;
 
 /// <summary>
-/// EF Core 版历史库（D19/D21 的存储层，取代原手写 SQL 的 SqliteHistoryStore）。
+/// EF Core 版历史库（/存储层，取代原手写 SQL 的 SqliteHistoryStore）。
 ///
 /// 与手写 SQL 版的关系 —— **对外行为完全一致**，接口一个字没改：
 ///   <see cref="IHistoryStore"/> / <see cref="IAlarmStore"/> 的实现换了，
@@ -86,7 +86,7 @@ public sealed class EfCoreHistoryStore : IHistoryStore, IAlarmStore
             await using DeviceMonitorDbContext db = CreateContext();
 
             // 建表 / 建索引：DDL 是 IF NOT EXISTS 的幂等语句，
-            // 老库（D19 手写 SQL 建的）直接沿用，不做迁移、不丢数据。
+            // 老库（手写 SQL 建的）直接沿用，不做迁移、不丢数据。
             await db.Database
                 .ExecuteSqlRawAsync(DeviceMonitorDbContext.SchemaDdl, cancellationToken)
                 .ConfigureAwait(false);

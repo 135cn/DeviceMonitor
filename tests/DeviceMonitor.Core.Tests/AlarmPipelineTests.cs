@@ -8,7 +8,7 @@ using Xunit;
 namespace DeviceMonitor.Core.Tests;
 
 /// <summary>
-/// 报警链路的端到端测试（D21）：样本**真的流经 DeviceManager 的泵**之后，报警能不能出来。
+/// 报警链路的端到端测试：样本**真的流经 DeviceManager 的泵**之后，报警能不能出来。
 ///
 /// 为什么光有单测不够：
 ///   · <see cref="AlarmDetectorTests"/> 只测状态机本身；
@@ -179,7 +179,7 @@ public class AlarmPipelineTests
     [Fact]
     public async Task 没挂报警服务时_采集照常工作()
     {
-        // 报警是可选的旁路：不注入 AlarmService 时 DeviceManager 的行为必须与 D19 完全一致。
+        // 报警是可选的旁路：不注入 AlarmService 时 DeviceManager 的行为必须与完全一致。
         var channel = new FakeDeviceChannel { RegisterValue = 120 };
 
         await using var manager = new DeviceManager([ConfigWithPoint(alarmHigh: 100)], _ => channel);

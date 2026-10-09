@@ -7,7 +7,7 @@ using System.Threading.Channels;
 namespace DeviceMonitor.Core.Services;
 
 /// <summary>
-/// 历史落库服务（D19）：把样本流**攒批**写进 SQLite。
+/// 历史落库服务：把样本流**攒批**写进 SQLite。
 ///
 /// 三个关键点：
 ///

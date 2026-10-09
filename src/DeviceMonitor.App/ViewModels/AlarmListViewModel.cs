@@ -9,10 +9,10 @@ using System.Windows.Threading;
 namespace DeviceMonitor.App.ViewModels
 {
     /// <summary>
-    /// 实时报警列表（D21）：把 <see cref="AlarmService.AlarmChanged"/> 搬进一个可绑定的集合。
+    /// 实时报警列表：把 <see cref="AlarmService.AlarmChanged"/> 搬进一个可绑定的集合。
     ///
     /// 语义选择：这里显示的是**报警记录流**（产生一条、恢复一条，最新的在最上面），
-    /// 而不是"当前还在报警的点位" —— 因为 D21 的验收标准是"调低上限能看到报警出现且**不抖屏**"，
+    /// 而不是"当前还在报警的点位" —— 因为验收标准是"调低上限能看到报警出现且**不抖屏**"，
     /// 用记录流一眼就能数清楚："阈值附近抖了 10 个采样，列表里只有 1 红 1 灰"。
     /// 同时在 <see cref="SummaryText"/> 里带上"当前报警 N 个"，兼顾"现在谁还在报"这个视角。
     /// </summary>

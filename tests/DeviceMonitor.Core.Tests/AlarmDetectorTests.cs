@@ -4,7 +4,7 @@ using Xunit;
 namespace DeviceMonitor.Core.Tests;
 
 /// <summary>
-/// 报警状态机测试（D21）。这是本阶段最该被测透的一块 ——
+/// 报警状态机测试。这是本阶段最该被测透的一块 ——
 /// 死区的全部意义就是"临界值附近不抖"，而抖动恰恰是最难用肉眼在界面上数清楚的。
 ///
 /// 全部用例都是纯逻辑：无 IO、无线程、无时间源（时间由参数传入），所以能精确断言每一条记录。
@@ -78,7 +78,7 @@ public class AlarmDetectorTests
         Assert.Empty(detector.Evaluate(DeviceId, Point(high: 100, low: 0), value, T0));
     }
 
-    // ---------------- 死区：D21 的核心 ----------------
+    // ---------------- 死区：核心 ----------------
 
     [Fact]
     public void 死区内波动_不产生任何记录()
@@ -99,7 +99,7 @@ public class AlarmDetectorTests
     [Fact]
     public void 模拟噪声在阈值附近抖动_只留下一条报警和一条恢复()
     {
-        // D21 验收标准（"调低上限能看到报警出现且不抖屏"）的等价单测：
+        // 验收标准（"调低上限能看到报警出现且不抖屏"）的等价单测：
         // 一串在阈值上下抖动的采样，最终只该留下"进"和"出"各一条。
         var detector = new AlarmDetector();
         PointConfig point = Point(high: 100, deadband: 2);
@@ -133,7 +133,7 @@ public class AlarmDetectorTests
     [Fact]
     public void 死区为0_回线即恢复()
     {
-        // 死区 0 应退化成"越过即报、回线即恢复"，与 D17 报警灯的语义一致。
+        // 死区 0 应退化成"越过即报、回线即恢复"，与报警灯的语义一致。
         var detector = new AlarmDetector();
         PointConfig point = Point(high: 100, deadband: 0);
 

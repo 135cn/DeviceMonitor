@@ -8,7 +8,7 @@ using System.Threading.Channels;
 namespace DeviceMonitor.Core.Tests;
 
 /// <summary>
-/// DeviceManager 测试（D15 第 3 步）：多设备编排、状态转发、样本 fan-in、释放顺序。
+/// DeviceManager 测试（第 3 步）：多设备编排、状态转发、样本 fan-in、释放顺序。
 /// 通过 channelFactory 注入假通道，完全不依赖串口。
 /// </summary>
 public class DeviceManagerTests
@@ -224,7 +224,7 @@ public class DeviceManagerTests
 
         // 通道已 Complete → 排空后 WaitToReadAsync 返回 false。
         //
-        // ★ 超时给足 10 秒（D23 修）：原先写 2 秒，并行跑测试 + 机器繁忙时会偶发
+        // ★ 超时给足 10 秒：原先写 2 秒，并行跑测试 + 机器繁忙时会偶发
         //   "TaskCanceledException 而不是 false" → 变成 flaky（实测 5 次里失败 1 次）。
         //   这里要验证的是"通道最终会 Complete"，不是"Complete 得多快"，别把时间卡紧。
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
@@ -284,7 +284,7 @@ public class DeviceManagerTests
         Assert.Throws<ArgumentException>(() => manager.Find("不存在的Id"));
     }
 
-    // ---------------- D16 新增：运行时增删设备 ----------------
+    // ---------------- 新增：运行时增删设备 ----------------
 
     [Fact]
     public async Task AddDevice_只加入列表_不自动开始采集()
@@ -569,7 +569,7 @@ public class DeviceManagerTests
         Assert.False(manager.IsCollecting);
     }
 
-    // ---------------- 样本扇出（D19） ----------------
+    // ---------------- 样本扇出 ----------------
 
     /// <summary>
     /// 把通道读到"已完成且读空"，返回条数。

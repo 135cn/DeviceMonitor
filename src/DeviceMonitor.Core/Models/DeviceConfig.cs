@@ -4,7 +4,7 @@ namespace DeviceMonitor.Core.Models;
 
 /// <summary>
 /// 设备配置：v1 中"一条串口连接对应一台 Modbus 从站"（一对一）。
-/// 配置序列化到 devices.json；由设置窗口（D16）维护。
+/// 配置序列化到 devices.json；由设置窗口维护。
 /// </summary>
 public sealed class DeviceConfig
 {

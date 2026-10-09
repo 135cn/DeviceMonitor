@@ -1,0 +1,15 @@
+﻿# 统一换行符：仓库内一律 LF，检出到 Windows 时由 Git 决定
+# （这个项目一路被 CRLF/LF 差异刷出过大量"假改动"，加这个文件根治）
+* text=auto
+
+*.cs      text diff=csharp
+*.xaml    text
+*.csproj  text
+*.sln     text eol=crlf
+*.md      text
+*.json    text
+*.config  text
+
+*.png     binary
+*.dll     binary
+*.db      binary

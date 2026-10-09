@@ -7,7 +7,7 @@ using System.Diagnostics;
 namespace DeviceMonitor.Core.Tests;
 
 /// <summary>
-/// CollectorService 测试（D10）：用 FakeDeviceChannel 模拟从站，不依赖真实串口。
+/// CollectorService 测试：用 FakeDeviceChannel 模拟从站，不依赖真实串口。
 /// </summary>
 public class CollectorServiceTests
 {
@@ -287,7 +287,7 @@ public class CollectorServiceTests
     }
 
     /// <summary>
-    /// D23 验收：连续开关采集 20 次不报「端口被占用」。
+    /// 验收：连续开关采集 20 次不报「端口被占用」。
     /// 在服务层的表现是——每轮 Start 都能成功，且 Stop 之后通道一定处于关闭状态
     /// （真实串口下"没关闭"就等于下一轮"被占用"）。
     /// </summary>

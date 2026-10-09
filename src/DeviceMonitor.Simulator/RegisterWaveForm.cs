@@ -83,7 +83,7 @@
             return (ushort)Math.Clamp(value, 0, ushort.MaxValue);
         }
 
-        /// <summary>随机游走：每秒钟随机走一步，始终限制在 基准±振幅 之间。</summary>
+        /// <summary>随机游走：每秒钟随机走一步，始终限制在基准±振幅之间。</summary>
         private double WalkValue(double elapsedSeconds)
         {
             int step = (int)elapsedSeconds;

@@ -74,7 +74,7 @@ namespace DeviceMonitor.App.ViewModels
         /// <summary>
         /// 更新时间。
         /// ★ 必须 ToLocalTime()：样本的 Utc 字段来自 DateTime.UtcNow，
-        ///   直接绑会看到 UTC 时间（比北京时间早 8 小时）。D17 一并修掉。
+        ///   直接绑会看到 UTC 时间（比北京时间早 8 小时）。一并修掉。
         /// </summary>
         public string LastUpdatedText => LastUpdatedUtc is DateTime utc
             ? utc.ToLocalTime().ToString("HH:mm:ss.fff")

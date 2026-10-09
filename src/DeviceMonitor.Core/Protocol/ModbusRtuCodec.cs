@@ -1,7 +1,7 @@
 namespace DeviceMonitor.Core.Protocol;
 
 /// <summary>
-/// Modbus RTU 主站编解码 —— 简历含金量最高的模块，自研实现（不调现成库）。
+/// Modbus RTU 主站编解码：自研实现，不依赖第三方协议库。
 ///
 /// 报文结构（设计文档 §6.2）：
 ///   读请求  : 从站地址(1) + 功能码(1) + 起始地址(2,高字节在前) + 数量(2,高字节在前) + CRC16(2,低字节在前) = 8 字节
@@ -9,8 +9,8 @@ namespace DeviceMonitor.Core.Protocol;
 ///   异常响应: 从站地址 + (功能码|0x80) + 异常码 + CRC = 5 字节
 ///
 /// 开发进度：
-///   D4 —— 实现 <see cref="BuildReadRequest"/>（组帧）
-///   D5 —— 实现 <see cref="TryParseReadResponse"/>（解析：长度/地址/功能码/CRC/数据字节序）
+///   —— 实现 <see cref="BuildReadRequest"/>（组帧）
+///   —— 实现 <see cref="TryParseReadResponse"/>（解析：长度/地址/功能码/CRC/数据字节序）
 /// </summary>
 public static class ModbusRtuCodec
 {
@@ -96,7 +96,7 @@ public static class ModbusRtuCodec
         if (frame[0] != slaveId)
             return false;
 
-        // 3) 功能码：等于期望值，或等于 期望值 | 0x80（异常响应）
+        // 3) 功能码：等于期望值，或等于期望值 | 0x80（异常响应）
         if (frame[1] != functionCode && frame[1] != (byte)(functionCode | 0x80))
             return false;
 

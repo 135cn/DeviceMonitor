@@ -9,7 +9,7 @@ namespace DeviceMonitor.Core.Channels;
 ///
 /// 关键决策（可参考你 SerialTool 中 SerialPortManager 的状态机与错误处理思路）：
 ///  - 采用"同步 Read + ReadTimeout"模式，由设备专属轮询线程独占调用，不混用
-///    DataReceived 事件，避免双读竞争（设计文档 §6.3 / 常见坑 #3）。
+///    DataReceived 事件，避免双读竞争（设计文档 §6.3）。
 ///  - Write → ReadFrame 用一把锁保证原子性。
 ///  - 打开失败（端口占用/不存在/被拔出）向上抛异常，由采集服务转成离线状态。
 /// </summary>

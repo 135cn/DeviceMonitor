@@ -16,7 +16,7 @@ namespace DeviceMonitor.App.ViewModels
     ///
     ///  1. **时间窗一律经 <see cref="HistoryQuery.ToUtc"/> 换算**。库里存的是 UTC、界面选的是本地时间，
     ///     而 WPF 里 DatePicker / 手输文本解析出来的 <c>DateTime</c> 是 <c>Unspecified</c> ——
-    ///     少这一步就整体偏 8 小时（D17 的时间列、D19 的 ToIso 都在同一类问题上栽过）。
+    ///     少这一步就整体偏 8 小时（时间列、ToIso 都在同一类问题上栽过）。
     ///
     ///  2. **查询走 Read 侧、与采集写入并发是常态**（WAL + 独立短连接，见 SqliteHistoryStore）。
     ///     所以这里不需要"停止采集才能查历史"。

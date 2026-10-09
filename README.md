@@ -1,10 +1,10 @@
 # DeviceMonitor —— 串口设备数据采集监控上位机
 
-> 简历主项目（C# 上位机开发实习）。通过串口以 **Modbus RTU** 轮询从站设备，实时显示寄存器值、
-> 绘制实时曲线、上下限报警、历史入库（SQLite）、历史回放与 Excel 报表导出。
+> 基于 **.NET 8 + WPF** 的串口设备数据采集监控上位机。通过串口以 **Modbus RTU** 轮询从站设备，
+> 实时显示寄存器值、绘制实时曲线、上下限报警、历史入库（SQLite + EF Core）、历史回放与 Excel 报表导出。
 > 同时自研 **Modbus RTU 从站模拟器**，无真实硬件也能完成端到端演示。
 
-设计文档与分周开发计划：[`docs/DeviceMonitor-Design.md`](docs/DeviceMonitor-Design.md)
+设计文档与开发计划：[`docs/DeviceMonitor-Design.md`](docs/DeviceMonitor-Design.md)
 
 ---
 
@@ -12,7 +12,7 @@
 
 ```
 DeviceMonitor.sln                      # 解决方案（传统 sln 格式，VS 2022 直接打开）
-├─ docs/DeviceMonitor-Design.md        # 设计文档 + 28 天任务清单
+├─ docs/DeviceMonitor-Design.md        # 设计文档（架构 / 协议报文 / 数据模型 / 开发计划）
 ├─ src/
 │  ├─ DeviceMonitor.Core/              # 类库：Models / Protocol / Channels / Services（不引用 WPF，可单测）
 │  ├─ DeviceMonitor.App/               # WPF 上位机界面（MVVM）
@@ -38,39 +38,37 @@ DeviceMonitor.sln                      # 解决方案（传统 sln 格式，VS 2
 > `COM11↔COM12` 需要在 VSPD 界面里手工创建过才能用。
 > 想确认本机有哪些口，跑一句 `SerialPort.GetPortNames()` 即可。
 
-## 当前进度
+## 功能状态
 
-**已打通 D1~D22：协议层 → 通道层 → 采集服务 → 端到端链路 → WPF 界面 + 设备配置持久化 + 实时数据表 + 实时曲线 + 历史入库与查询回放 + 上下限报警（带死区）+ Excel 报表导出，全部可跑。**
+**已完成并可运行**：协议层（主站 + 从站双侧自研）→ 通道层 → 采集服务 → 端到端链路 →
+WPF 界面（设备配置持久化、实时数据表与曲线、历史入库与查询回放、上下限报警、Excel 报表导出）。
 
-| 模块 | 状态 |
-|---|---|
-| 解决方案 + 五个项目 + 引用关系 | ✅ 完成 |
-| `Models`（DeviceConfig / PointConfig / DataSample / AlarmRecord / DeviceState） | ✅ 完成（D2） |
-| `Protocol/Crc16`（含已知向量单元测试） | ✅ 完成（D3） |
-| `Protocol/ModbusRtuCodec`（组帧 / 解析 / 从站侧构造响应与异常帧） | ✅ 完成（D4~D5） |
-| `Protocol/FrameAssembler`（半包 / 粘包 / 失步重同步 / 帧间空闲判界） | ✅ 完成（D6） |
-| `Channels/IDeviceChannel`（接口已定稿） | ✅ 完成 |
-| `Channels/SerialChannel`（同步一问一答 / 整体超时预算 / 异常映射） | ✅ 完成（D8~D9） |
-| `Services/CollectorService`（轮询 / 状态机 / 退避重连 / 生产者-消费者） | ✅ 完成（D10~D14） |
-| `Protocol/ModbusRtuSlave`（FC 03/04/06/10 + 异常码） | ✅ 完成（D11） |
-| `Simulator`（串口外壳 + 四种波形 + 键盘强制超限） | ✅ 完成（D11~D12） |
-| `tools/MasterConsole`（控制台主站，验证端到端链路） | ✅ 完成（D12~D14） |
-| `Diagnostics/AppLog`（NLog 结构化日志，按天落盘） | ✅ 完成（D14 补做） |
-| DI 容器 + MVVM（CommunityToolkit.Mvvm）+ 主窗口实时数据表 | ✅ 完成（D15，桌面验收已过） |
-| `Services/JsonDeviceConfigStore`（`devices.json` 持久化）+ 设备增删改窗口 | ✅ 完成（D16，桌面验收已过） |
-| 实时数据表：在线状态圆点 + 报警灯 + 数值列格式化（`AlarmLimits` 限值判定） | ✅ 完成（D17，桌面验收已过） |
-| 实时曲线：`ScottPlot.WPF` + 滚动窗口（每系列定长 300 点）+ 复用主 VM 的 150ms 节流 | ✅ 完成（D18，桌面验收已过） |
-| 历史入库：`history.db`（SQLite + **EF Core**）+ 通道扇出 + 攒批 200 条/5s 单事务 + WAL | ✅ 完成（D19 手写 SQL；D23 换 EF Core，库格式零迁移） |
-| 历史查询与曲线回放：筛选（设备 / 点位 / 时间段）+ 表格 + `ScottPlot` 曲线；查询走 EF Core 短生命周期上下文（连接由池提供，与采集写入并发） | ✅ 完成（D20，桌面验收已过） |
-| 报警模块：上下限判定 + 死区去抖 + `alarm_log` 入库 + 实时报警列表（红色高亮） | ✅ 完成（D21，桌面验收已过） |
-| Excel 报表导出：历史 + 报警两个 sheet，报警按"产生/恢复"配对给出**持续时长**（`ClosedXML`） | ✅ 完成（D22，代码链路已验证，见 HANDOFF 8.7） |
-| Excel 报表导出 | ⛔ 未开始（D22~D28） |
+| 模块 | 说明 | 状态 |
+|---|---|---|
+| 解决方案结构 | 五个项目：Core / App / Simulator / MasterConsole / Tests | ✅ |
+| `Models` | DeviceConfig / PointConfig / DataSample / AlarmRecord / DeviceState | ✅ |
+| `Protocol/Crc16` | 多项式 0xA001，含已知向量与"整帧校验为 0"的单元测试 | ✅ |
+| `Protocol/ModbusRtuCodec` | 主站组帧与响应解析 + 从站响应/异常帧构造 | ✅ |
+| `Protocol/FrameAssembler` | 半包 / 粘包 / 失步重同步 / 帧间空闲判界 | ✅ |
+| `Protocol/ModbusRtuSlave` | FC 03/04/06/10 + 异常码 + 从站地址过滤 | ✅ |
+| `Channels/SerialChannel` | 同步一问一答 / 整体超时预算 / 异常分类映射 | ✅ |
+| `Services/CollectorService` | 轮询 / 状态机 / 退避重连 / 生产者-消费者 | ✅ |
+| `Services/DeviceManager` | 多设备编排、状态汇总、样本 fan-in 与历史扇出 | ✅ |
+| `Simulator` | 从站模拟器：四种波形 + 键盘强制超限 | ✅ |
+| `tools/MasterConsole` | 控制台主站，用于验证整条链路与排查 | ✅ |
+| `Diagnostics/AppLog` | NLog 结构化日志，按天落盘、保留 7 天 | ✅ |
+| 界面（DI + MVVM） | 主窗口实时数据表、在线状态圆点、报警灯 | ✅ |
+| 设备配置 | `Services/JsonDeviceConfigStore` 持久化 `devices.json` + 设备增删改窗口 | ✅ |
+| 实时曲线 | `ScottPlot.WPF` + 定长滚动窗口（每系列 300 点）+ 复用主 VM 节流 | ✅ |
+| 历史入库 | `history.db`（SQLite + EF Core）+ 攒批 200 条 / 5 秒单事务 + WAL | ✅ |
+| 历史查询与回放 | 设备 / 点位 / 时间段筛选 + 表格 + 曲线（降采样） | ✅ |
+| 报警 | 上下限 + 死区去抖 + `alarm_log` 入库 + 实时报警列表 | ✅ |
+| Excel 报表 | 历史 + 报警两个 sheet，报警按"产生/恢复"配对给出持续时长 | ✅ |
+| 鲁棒性 | 全局异常兜底、退出顺序、停止时冲刷不丢数据 | ✅ |
+| 演示材料 | 录屏与图文演示 | ⬜ 计划中 |
 
-> **待做清单**：鲁棒性收尾与打磨、录屏、README 定稿（D23~D28）。
->
-> 技术栈引入情况：**CommunityToolkit.Mvvm、Microsoft.Extensions.DependencyInjection、NLog
-> 已引入**；**存储层已换成 `Microsoft.EntityFrameworkCore.Sqlite`（EF Core，D23）**；
-> Excel 导出用 `ClosedXML`（已引入，D22）；绘图库为 **`ScottPlot.WPF`**（D18）。
+> 技术栈：**.NET 8 / WPF / MVVM（CommunityToolkit.Mvvm）/ Microsoft.Extensions.DependencyInjection /
+> EF Core + SQLite / ScottPlot.WPF / ClosedXML / NLog / xUnit v3**。
 
 ## 环境要求
 
@@ -88,7 +86,7 @@ dotnet test  tests/DeviceMonitor.Core.Tests/DeviceMonitor.Core.Tests.csproj   # 
 测试框架：**xunit v3 + Microsoft.Testing.Platform**（进程内运行，不依赖 VSTest testhost；
 命令行 `dotnet test` 可用，较新的 VS 2022 也能在测试资源管理器中直接发现）。
 
-当前规模：**23 个测试文件、320 个用例、0 失败**（其中 3 个端到端集成用例默认 Skip，见下）。
+当前规模：**23 个测试文件、326 个用例、0 失败**（其中 3 个依赖硬件的端到端集成用例默认 Skip，见下）。
 覆盖范围：CRC 已知向量、组帧逐字节比对、响应解析（正常 / 异常码 / 坏 CRC / 短帧 / 粘包）、
 `FrameAssembler` 半包与失步重同步、从站读写的异常码与地址过滤、主从对拍、
 `CollectorService` 的轮询与「连续超时 → 离线 → 自动恢复」状态机、`SerialChannel` 异常映射与虚拟串口回环收发、
@@ -105,7 +103,7 @@ dotnet test  tests/DeviceMonitor.Core.Tests/DeviceMonitor.Core.Tests.csproj   # 
 依赖虚拟串口的用例（`SerialChannelTests` / `SerialChannelLoopbackTests`）在**本机没有该端口时自动 Skip**，
 不会把测试套件拖红。端到端集成测试默认跳过，要跑它见「端到端自动化验证」。
 
-若在受限环境（如无命名管道权限的沙箱/CI）里 `dotnet test` 报 IPC 连接失败，
+若在受限环境（如无命名管道权限的 CI 容器）里 `dotnet test` 报 IPC 连接失败，
 可直接运行测试程序本身（同样是进程内执行，不需要管道）：
 
 ```powershell
@@ -123,20 +121,17 @@ dotnet restore src/DeviceMonitor.Core/DeviceMonitor.Core.csproj -p:NuGetAudit=fa
 dotnet build DeviceMonitor.sln --no-restore
 ```
 
-> **`ScottPlot.WPF`**（D18 实时曲线用，5.1.59）已作为 `PackageReference` 加在 `DeviceMonitor.App` 上，
-> 并已还原进本机 NuGet 缓存，离线可构建。绘图库只有界面层需要，
-> Core / Simulator / MasterConsole / Tests 都不引用它。
+> **`ScottPlot.WPF`**（实时曲线用，5.1.59）作为 `PackageReference` 加在 `DeviceMonitor.App` 上。
+> 绘图库只有界面层需要，Core / Simulator / MasterConsole / Tests 都不引用它。
 >
-> **`Microsoft.EntityFrameworkCore.Sqlite`**（历史库用，8.0.6）加在 `DeviceMonitor.Core` 上。
-> 存储层演进：D19 是 `Microsoft.Data.Sqlite` 手写参数化 SQL，**D23 换成 EF Core**。
-> 传递依赖是 `Microsoft.EntityFrameworkCore` + `Microsoft.Data.Sqlite`
-> （→ `SQLitePCLRaw.bundle_e_sqlite3`，含 Windows x64 原生库），已进缓存、离线可构建。
+> **`Microsoft.EntityFrameworkCore.Sqlite`**（历史库用，8.0.6）加在 `DeviceMonitor.Core` 上，
+> 传递依赖 `Microsoft.EntityFrameworkCore` + `Microsoft.Data.Sqlite`
+> （→ `SQLitePCLRaw.bundle_e_sqlite3`，含 Windows x64 原生库）。
 > 它属于数据访问，**与 UI/绘图无关**（不违反"Core 不引用 WPF"这条）。
 >
-> ★ 表结构、时间列格式（定长 `yyyy-MM-ddTHH:mm:ss.fffZ`）与索引名全部沿用 D19 那一版
-> （`DeviceMonitorDbContext.SchemaDdl` + `UtcTsConverter`），所以**老的 `history.db` 不需要迁移**；
-> 有两条测试专门钉这件事（`零迁移_手写SQL建的老库_EFCore也能读`、
-> `EF写入的时间戳_仍是定长ISO8601加Z`）。
+> ★ 表结构、时间列格式（定长 `yyyy-MM-ddTHH:mm:ss.fffZ`）与索引名保持不变，
+> 因此**已有的 `history.db` 无需迁移**；有两条测试专门钉这件事
+> （`零迁移_手写SQL建的老库_EFCore也能读`、`EF写入的时间戳_仍是定长ISO8601加Z`）。
 
 ## 演示方式
 
@@ -177,13 +172,11 @@ dotnet run --project src/DeviceMonitor.Simulator -- --port COM10 --slave 1 --poi
 $env:SIMULATOR_E2E = '1'; dotnet test tests/DeviceMonitor.Core.Tests
 ```
 
-## 后续开发顺序
+## 后续计划
 
-按 `docs/DeviceMonitor-Design.md` §9 的 28 天清单推进（**D1~D22 已完成**）：
-
-```
-鲁棒性收尾 / 打磨 / 录屏 / README(D23~D28)
-```
+- 补录屏与截图，完善 README 的图文演示
+- 多从站轮询与 **Modbus TCP**：只需新增一个 `IDeviceChannel` 实现，采集服务与界面层无需改动
+- 报警增强：分级报警、报警确认、报警抑制
 
 > 历史库落在 `bin/.../history.db`（和 `devices.json` 同目录，单文件零部署）：
 > **启动采集后样本会自动攒批入库**（满 200 条或每 5 秒一个事务），停止采集/退出时会冲刷余量。

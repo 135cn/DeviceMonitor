@@ -1,7 +1,7 @@
 ﻿namespace DeviceMonitor.Core.Protocol
 {
 
-    /// <summary>Modbus 异常响应的异常码（响应帧里 功能码|0x80 后面那一个字节）。</summary>
+    /// <summary>Modbus 异常响应的异常码（响应帧里功能码|0x80 后面那一个字节）。</summary>
     public enum ModbusExceptionCode : byte
     {
         /// <summary>非法功能码：从站不支持该功能。</summary>

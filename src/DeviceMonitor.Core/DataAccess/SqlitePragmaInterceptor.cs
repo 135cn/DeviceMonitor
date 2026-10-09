@@ -4,7 +4,7 @@ using System.Data.Common;
 namespace DeviceMonitor.Core.DataAccess;
 
 /// <summary>
-/// 每条物理连接打开时设置 SQLite 的 PRAGMA（D19 原手写 SQL 版也是这三条）。
+/// 每条物理连接打开时设置 SQLite 的 PRAGMA（原手写 SQL 版也是这三条）。
 ///
 /// 为什么要挂在"连接打开"这个钩子上，而不是启动时设一次：
 ///   - <c>journal_mode = WAL</c> 是**写进库文件头**的，设一次就持久 —— 重复设置只是读一下，无副作用；
@@ -15,7 +15,7 @@ namespace DeviceMonitor.Core.DataAccess;
 ///   所以每连接设一次是**必需**的，代价只是一条 PRAGMA。
 ///
 /// 参数含义（与设计文档 §6.5 一致）：
-///   WAL            读写不互锁 —— D20 的历史查询要"一边查、采集一边写"；
+///   WAL            读写不互锁 —— 历史查询要"一边查、采集一边写"；
 ///   synchronous=NORMAL  WAL 下已足够安全（掉电最多丢最后几个事务，不会坏库），比 FULL 快一个量级；
 ///   busy_timeout=5000   被别的进程占着（比如用 DB 工具打开看数据）时先等 5 秒，而不是立刻报错。
 /// </summary>

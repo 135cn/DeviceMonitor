@@ -77,7 +77,7 @@ public sealed class CollectorService
         }
     }
 
-    /// <summary>启动轮询循环（D10 实现）。重复启动属于调用方错误 → 抛异常。</summary>
+    /// <summary>启动轮询循环。重复启动属于调用方错误 → 抛异常。</summary>
     public Task StartAsync(CancellationToken externalToken = default)
     {
         lock (_lifecycleLock)

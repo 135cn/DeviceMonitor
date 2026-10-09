@@ -16,8 +16,8 @@
         <conv:AlarmLevelToBrushConverter x:Key="AlarmToBrush"/>
     </Window.Resources>
     <!--
-        界面骨架（占位版）：功能从 D15 起逐步点亮。
-        按设计文档 §6.7 布局：工具栏 / 设备列表 / 实时表格 / 曲线区 / 状态栏。
+        主窗口布局：工具栏 / 设备列表 / 实时表格 + 曲线 / 报警与日志 / 状态栏。
+        见设计文档 §6.7。
     -->
     <Grid>
         <Grid.RowDefinitions>

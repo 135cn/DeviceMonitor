@@ -6,7 +6,7 @@ using Xunit;
 namespace DeviceMonitor.Core.Tests;
 
 /// <summary>
-/// 报警服务测试（D21）：判定本身由 <see cref="AlarmDetectorTests"/> 覆盖，
+/// 报警服务测试：判定本身由 <see cref="AlarmDetectorTests"/> 覆盖，
 /// 这里只测"派发与攒批"这层 —— 用假 store，完全不碰文件系统。
 ///
 /// 两个出口的时序是刻意的，也是这里最该钉住的：
@@ -91,7 +91,7 @@ public class AlarmServiceTests
     public void 订阅方抛异常_不影响其它订阅方也不影响状态位()
     {
         // 订阅方（UI）抛异常绝不能把采集泵带崩 —— 泵死了那台设备的样本就再也上不了屏，
-        // 而且外观上完全看不出来（坑 #39）。
+        // 而且外观上完全看不出来。
         var store = new FakeAlarmStore();
         var service = new AlarmService(store, batchSize: 10);
 
@@ -155,7 +155,7 @@ public class AlarmServiceTests
     }
 
     /// <summary>
-    /// D23 回归：停止时**刚产生、还没落库**的报警不能丢。
+    /// 回归：停止时**刚产生、还没落库**的报警不能丢。
     ///
     /// 修复前 StopAsync 先 Cancel 再 Complete，而泵读的是 ReadAllAsync(token)：
     /// 停止瞬间正好停在 WaitToReadAsync 上的泵会被取消直接中断，那条刚写进通道、

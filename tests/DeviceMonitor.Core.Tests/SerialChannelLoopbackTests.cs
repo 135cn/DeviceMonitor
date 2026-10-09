@@ -7,7 +7,7 @@ using System.IO.Ports;
 namespace DeviceMonitor.Core.Tests;
 
 /// <summary>
-/// SerialChannel 收发测试（D9）：用一对虚拟串口做回环。
+/// SerialChannel 收发测试：用一对虚拟串口做回环。
 /// 端口不存在时自动 Skip，不影响其它环境的测试套件。
 /// </summary>
 [Collection("SerialHardware")]   // 与 SerialChannelTests 争用同一对串口，必须串行执行

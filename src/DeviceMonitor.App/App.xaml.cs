@@ -27,7 +27,7 @@ public partial class App : Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
-        // ==================== D23 三道兜底 ====================
+        // ==================== 三道兜底 ====================
         // ① UI 线程未处理异常：记日志 + 提示用户 + e.Handled 保住界面。
         //    不设 Handled 的话 WPF 会直接关掉窗口 —— 一个偶发异常就把整个软件干掉，最糟的体验。
         DispatcherUnhandledException += OnDispatcherUnhandledException;
@@ -55,16 +55,16 @@ public partial class App : Application
             //   整个软件启动即抛异常、界面根本出不来 —— 而用户此时唯一的办法是手工改 JSON。
             //   探针通道把这个尴尬变成了"设备显示离线、可在界面里改掉或删掉"。
             //   真正点"启动采集"时，MainViewModel 会把工厂换回 SerialChannel 并重建句柄。
-            // 报警判定挂在 DeviceManager 的样本泵上（D21）。
+            // 报警判定挂在 DeviceManager 的样本泵上。
             // 这里必须走**工厂**注册：直接写 AddSingleton<DeviceManager>() 的话，
-            // DI 得去猜 IEnumerable<DeviceConfig> 这个参数，猜不出来 —— 启动即崩（坑 #41）。
+            // DI 得去猜 IEnumerable<DeviceConfig> 这个参数，猜不出来 —— 启动即崩。
             return new DeviceManager(
                 store.Load(),
                 config => new ProbeDeviceChannel(config.PortName),
                 alarmService: provider.GetRequiredService<AlarmService>());
         });
 
-        // ----历史库（样本 + 报警共用同一个库文件）----
+        // ----历史库（样本 + 报警共用同一个库文件） ----
         // 库文件放 exe 同目录（和 devices.json 一样），保持"单文件零部署"。
         // ★ 两个存储接口必须解析到**同一个实例**：
         //   各 new 一个的话，样本写和报警写会各持一条连接、各有一把写锁 —— 锁不互斥，
@@ -81,7 +81,7 @@ public partial class App : Application
         services.AddSingleton<AlarmService>();
         services.AddSingleton<HistoryService>();
 
-        // 导出（D22）：只依赖两个存储接口取数，无状态，单例即可。
+        // 导出：只依赖两个存储接口取数，无状态，单例即可。
         services.AddSingleton<ExportService>();
 
         services.AddSingleton<AlarmListViewModel>();
@@ -107,7 +107,7 @@ public partial class App : Application
         window.Show();
     }
 
-    // ==================== D23 异常兜底的处理体 ====================
+    // ==================== 异常兜底的处理体 ====================
 
     private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
     {
@@ -172,7 +172,7 @@ public partial class App : Application
             Log.Error(ex, "退出时停止采集失败（忽略，继续释放）。");
         }
 
-        // ---------------- ② 保存设备配置（D16）----------------
+        // ---------------- ② 保存设备配置 ----------------
         // 单独 try：磁盘满/只读/被其它进程锁住时不能连累后面的释放 ——
         // 否则串口不关、数据库不 flush，下次启动直接报"端口被占用"。
         try

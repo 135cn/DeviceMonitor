@@ -4,7 +4,7 @@ using DeviceMonitor.Core.Validation;
 namespace DeviceMonitor.Core.Tests;
 
 /// <summary>
-/// 配置校验器测试（D16 前置）：
+/// 配置校验器测试：
 /// 核心是"能在保存前拦住会炸运行时的配置"，尤其是「点位全被禁用」这条
 /// —— 它在修复前会一路漏到 CollectorService 的构造函数里抛异常。
 /// </summary>
@@ -290,7 +290,7 @@ public class DeviceConfigValidatorTests
         Assert.True(DeviceConfigValidator.ValidateDevice(config).IsValid);
     }
 
-    // ---------------- 报警死区（D21） ----------------
+    // ---------------- 报警死区 ----------------
 
     [Fact]
     public void 报警死区为负_校验失败()

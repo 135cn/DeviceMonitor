@@ -3,7 +3,7 @@ using DeviceMonitor.Core.Protocol;
 namespace DeviceMonitor.Core.Tests;
 
 /// <summary>
-/// ModbusRtuCodec.TryParseReadResponse 解析测试（D5）。
+/// ModbusRtuCodec.TryParseReadResponse 解析测试。
 /// 造帧助手内部用 Crc16 计算校验，避免在测试里手写 CRC 常量。
 /// </summary>
 public class ModbusRtuCodecParseTests

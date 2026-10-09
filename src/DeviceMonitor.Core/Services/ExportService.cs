@@ -8,7 +8,7 @@ namespace DeviceMonitor.Core.Services
 {
     /// <summary>
     /// 一次导出的参数。时间一律是 **UTC**（界面选的是本地时间，换算由调用方负责 ——
-    /// 理由同 D20：库里存 UTC，界面显示本地，这条边界只能在一个地方跨）。
+    /// 理由同库里存 UTC，界面显示本地，这条边界只能在一个地方跨）。
     /// </summary>
     /// <param name="Device">设备及其点位定义。**点位的名称/单位/小数位只在这里有** ——
     /// 历史表只存 point_id 与值，报表要显示"温度(℃)"就得靠这份配置。</param>
@@ -30,7 +30,7 @@ namespace DeviceMonitor.Core.Services
         bool AlarmTruncated);
 
     /// <summary>
-    /// Excel 报表导出（D22，ClosedXML）。
+    /// Excel 报表导出（ClosedXML）。
     ///
     /// 生成两个工作表：
     ///   · **历史数据** —— 时间(本地) / 设备 / 点位 / 工程值 / 单位
@@ -38,7 +38,7 @@ namespace DeviceMonitor.Core.Services
     ///
     /// ★ 报警那张表不是把 <c>alarm_log</c> 直接倒出来，而是先用 <see cref="AlarmEpisodes"/>
     ///   把"产生 + 恢复"配成一条条**事件**再写 —— 报表的读者要的是"这次报警持续了多久"，
-    ///   而不是两条需要自己相减的原始记录。这也是 D21 坚持记 Recovered 的意义所在。
+    ///   而不是两条需要自己相减的原始记录。这也是坚持记 Recovered 的意义所在。
     ///
     /// 分层：本类只依赖 <see cref="IHistoryStore"/> / <see cref="IAlarmStore"/> 两个接口取数，
     /// 所以可以用假 store 单测"查询参数对不对、截断判定准不准"，而"xlsx 里到底写了什么"

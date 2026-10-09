@@ -38,7 +38,7 @@ namespace DeviceMonitor.App.ViewModels
         /// <summary>
         /// 点位索引：key = (设备Id, 点位Id) → 表格行。
         ///
-        /// ⚠️ 这里**不是**"构建一次就再也不变"：D16 起设备可以在运行时增删、配置可以被编辑，
+        /// ⚠️ 这里**不是**"构建一次就再也不变"：设备可以在运行时增删、配置可以被编辑，
         /// 索引必须跟着 <see cref="AddDeviceViewModel"/> / <see cref="RemoveDeviceViewModel"/>
         /// 同步增删，否则增删设备后表格会丢绑定（样本找不到对应行，永远不刷新）。
         /// </summary>
@@ -475,7 +475,7 @@ namespace DeviceMonitor.App.ViewModels
                 return;
             }
 
-            // D23：全部离线时要把"为什么"也说出来 ——
+            // 全部离线时要把"为什么"也说出来 ——
             // 端口被占用 / 被拔出 / 从站不响应时，这是用户唯一的线索
             // （否则界面只显示"均未在线"，等于让人去猜）。
             string? reason = Devices

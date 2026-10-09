@@ -7,7 +7,7 @@ using Xunit;
 namespace DeviceMonitor.Core.Tests;
 
 /// <summary>
-/// 导出服务测试（D22）。
+/// 导出服务测试。
 ///
 /// 关键在**验证方式**：不是断言"调用没抛异常"，而是把生成的文件用 ClosedXML **读回来**逐格核对。
 /// 报表这种东西，靠肉眼打开 xlsx 看一遍是最没效率、也最容易漏的验证方式 ——
@@ -111,7 +111,7 @@ public class ExportServiceTests : IDisposable
         Assert.Equal(56.78, sheet.Cell(3, 4).GetDouble(), 3);
 
         // ★ 时间写的是**本地时间**：库里存 UTC，报表要和界面上看到的一致，
-        //   否则用户会以为数据整体差了 8 小时（D20 踩过同类问题）。
+        //   否则用户会以为数据整体差了 8 小时（踩过同类问题）。
         Assert.Equal(T0.ToLocalTime(), sheet.Cell(2, 1).GetDateTime());
     }
 

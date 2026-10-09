@@ -1,7 +1,7 @@
 namespace DeviceMonitor.Core.Protocol;
 
 /// <summary>
-/// 字节流 → 完整 Modbus RTU 帧 的组装器。
+/// 字节流 → 完整 Modbus RTU 帧的组装器。
 ///
 /// 背景：串口一次 Read 不一定恰好读回一帧（半包），也可能帧后夹着下一帧内容。
 /// 主站侧"一问一答"简化策略（设计文档 §6.2）：
@@ -9,7 +9,7 @@ namespace DeviceMonitor.Core.Protocol;
 /// 该策略直接由 SerialChannel.ReadFrame 实现即可；本类用于需要"按 3.5 字符空闲判帧"
 /// 的从站侧（模拟器）或通用场景。
 ///
-/// 开发进度：D6 实现（供 SerialChannel / 模拟器复用）。
+/// 开发进度：实现（供 SerialChannel / 模拟器复用）。
 /// </summary>
 public enum FrameDirection
 {

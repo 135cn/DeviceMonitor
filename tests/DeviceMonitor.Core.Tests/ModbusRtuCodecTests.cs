@@ -3,7 +3,7 @@
 namespace DeviceMonitor.Core.Tests;
 
 /// <summary>
-/// ModbusRtuCodec.BuildReadRequest 的逐字节比对测试（D4）。
+/// ModbusRtuCodec.BuildReadRequest 的逐字节比对测试。
 /// 期望帧中的 CRC 值来自 Modbus 文档常用示例，且已被 Crc16Tests 独立验证过。
 /// </summary>
 public class ModbusRtuCodecTests

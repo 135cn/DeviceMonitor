@@ -8,7 +8,7 @@ namespace DeviceMonitor.Core.Diagnostics;
 /// 为什么要有这一层（而不是各处直接 <c>LogManager.GetCurrentClassLogger()</c>）：
 ///   - NLog 的 <c>LogManager.GetCurrentClassLogger()</c> 依赖调用方的栈帧来推断类名，
 ///     在某些内联/泛型场景下会记成错误的 logger 名；这里显式传类型，名字稳定；
-///   - 将来若要换成 Serilog / 内置 <c>ILogger</c>，只改这一个文件（面试可讲：门面隔离第三方依赖）。
+///   - 将来若要换成 Serilog / 内置 <c>ILogger</c>，只改这一个文件（门面隔离第三方依赖）。
 ///
 /// 注意：没有加载 NLog.config 时 NLog 内部是"无目标"状态，日志静默丢弃、不会抛异常，
 /// 所以类库（Core）无需关心配置，由宿主（App / Simulator / 测试）决定输出到哪。
@@ -17,7 +17,7 @@ public static class AppLog
 {
     /// <summary>
     /// NLog 会对 string 类型的参数自动加双引号（JSON 式转义）。
-    /// 我们的消息模板已经用「」把变量括起来了，再加一层引号会变成 设备「"COM9"」这种难看的输出，
+    /// 我们的消息模板已经用「」把变量括起来了，再加一层引号会变成设备「"COM9"」这种难看的输出，
     /// 所以所有 string 参数统一用 <see cref="Wrap"/> 包一层转成 <see cref="LogValue"/>，
     /// 命中 NLog 的"自定义类型走 ToString"路径，从而去掉多余引号。
     /// </summary>

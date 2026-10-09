@@ -12,10 +12,10 @@ using System.Threading.Tasks;
 namespace DeviceMonitor.Core.Services
 {
     /// <summary>
-    /// 报警服务（D21）：把 <see cref="AlarmDetector"/> 的判定结果送到**两个出口** ——
+    /// 报警服务：把 <see cref="AlarmDetector"/> 的判定结果送到**两个出口** ——
     /// 一个是 UI（事件，红色列表即时刷新），一个是 <c>alarm_log</c> 表（攒批，事后可查）。
     ///
-    /// 分层与 D19 的 <see cref="HistoryService"/> 刻意保持一致：
+    /// 分层与 <see cref="HistoryService"/> 刻意保持一致：
     ///   · 判定逻辑在 <see cref="AlarmDetector"/>（纯逻辑、可完整单测）；
     ///   · 本类只负责"派发 + 攒批 + 生命周期"，落库的具体列类型交给 <see cref="IAlarmStore"/> 的实现。
     ///   于是单测可以塞一个假 store，完全不碰文件系统。
@@ -142,14 +142,14 @@ namespace DeviceMonitor.Core.Services
             _pumpTask = null;
             _flusherTask = null;
 
-            // ★ 顺序不能反（D23 修）：
+            // ★ 顺序不能反：
             //   ① 先 Complete —— 让泵把通道里剩下的读完，ReadAllAsync 排空后正常结束；
             //   ② 再 Cancel   —— 只用来停"定时冲刷循环"，它等的是 timer.WaitForNextTickAsync(token)，
             //      不取消就会一直等下去（表现为"停止时报 5 秒超时 + cts 永不 Dispose，任务成孤儿"）。
             //
             //   反过来写（先 Cancel）会让泵**立刻中断**：此刻还在通道里、没搬进缓冲区的报警
             //   永远进不了 _buffer，末尾那次 FlushAsync 自然也刷不到 —— 就是"停止时丢数据"。
-            //   这个 bug 由间歇性失败的 AlarmServiceTests.停止时冲刷余量_不满一批也不丢 暴露出来。
+            //   这个 bug 由间歇性失败的 AlarmServiceTests.停止时冲刷余量_不满一批也不丢暴露出来。
             _records.Writer.TryComplete();
             cts.Cancel();
 
@@ -213,7 +213,7 @@ namespace DeviceMonitor.Core.Services
                         record.Kind, AppLog.Wrap(record.PointName));
 
                 // 出口 2：UI。订阅方抛异常不能把采集泵带崩 —— 一台设备的泵死了，
-                // 它的样本就再也上不了屏，而且外表完全看不出来（坑 #39 的教训）。
+                // 它的样本就再也上不了屏，而且外表完全看不出来（踩过的教训）。
                 //
                 // ★ 必须**逐个订阅者** try/catch，不能把整个多播委托包进一个 try：
                 //   后者一旦前面某个订阅者抛异常，委托链就地中断，**后面的订阅者全部收不到** ——

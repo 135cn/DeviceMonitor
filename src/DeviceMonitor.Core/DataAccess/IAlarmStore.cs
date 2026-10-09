@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 namespace DeviceMonitor.Core.DataAccess
 {
     /// <summary>
-    /// 报警记录的存储抽象（D21）。
+    /// 报警记录的存储抽象。
     ///
     /// **为什么从 <see cref="IHistoryStore"/> 里拆出来**：
     ///   一开始把写/查报警直接加在 <c>IHistoryStore</c> 上，结果 <c>HistoryServiceTests</c> 里

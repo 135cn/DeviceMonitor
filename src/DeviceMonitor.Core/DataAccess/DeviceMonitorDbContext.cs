@@ -28,7 +28,7 @@ public sealed class HistoryRow
 /// <summary>
 /// <c>alarm_log</c> 表的一行（EF Core 实体）。
 ///
-/// 与设计文档 §6.5 相比**刻意多一列 point_name**：报警列表和 D22 的 Excel 导出都要显示点名，
+/// 与设计文档 §6.5 相比**刻意多一列 point_name**：报警列表和 Excel 导出都要显示点名，
 /// 而按 point_id 反查 devices.json 会引入"配置改名后历史报警跟着变"的耦合 ——
 /// 报警是事件存档，应该冻结当时的名字。
 /// </summary>
@@ -53,12 +53,12 @@ public sealed class AlarmLogRow
 }
 
 /// <summary>
-/// 历史库的 EF Core 上下文（D19/D21 的存储层）。
+/// 历史库的 EF Core 上下文（/存储层）。
 ///
 /// 三个关键约定，改之前先读：
 ///
 /// 1. **时间列存"定长 ISO8601 + 显式 Z"**（<see cref="TsFormat"/>），走
-///    <see cref="UtcTsConverter"/>。这是**零迁移**的前提：老库（D19 用手写 SQL 建的）
+///    <see cref="UtcTsConverter"/>。这是**零迁移**的前提：老库（用手写 SQL 建的）
 ///    就是这个格式，换个格式 EF 就读不出来、排序也会错
 ///    （EF Core SQLite 默认是 <c>yyyy-MM-dd HH:mm:ss.fffffff</c>，长度不固定）。
 ///    定长的另一个好处：字符串比较等价于时间比较，`ts &gt;= ? AND ts &lt;= ?` 能直接走索引。
@@ -70,7 +70,7 @@ public sealed class AlarmLogRow
 /// 3. **一个实例一次操作**：每次读写 <c>new</c> 一个上下文。
 ///    Microsoft.Data.Sqlite 默认开连接池，"新建上下文"实际是复用池里的物理连接，开销极小；
 ///    换来的好处是彻底没有"长连接被多线程共用"的问题
-///    （D20 踩过：ADO.NET 连接不是线程安全的，读写共用一个连接会在写入事务进行中的那一瞬
+///    （踩过：ADO.NET 连接不是线程安全的，读写共用一个连接会在写入事务进行中的那一瞬
 ///    抛 <c>The transaction object is not associated with the same connection object</c>）。
 /// </summary>
 public sealed class DeviceMonitorDbContext : DbContext
@@ -78,7 +78,7 @@ public sealed class DeviceMonitorDbContext : DbContext
     /// <summary>库里时间列的格式：定长 + 显式 UTC 标记（见类注释第 1 条）。</summary>
     public const string TsFormat = "yyyy-MM-ddTHH:mm:ss.fff'Z'";
 
-    /// <summary>UTC ↔ 库里的定长 ISO8601 文本。**格式必须与 D19 手写 SQL 版完全一致**。</summary>
+    /// <summary>UTC ↔ 库里的定长 ISO8601 文本。**格式必须与手写 SQL 版完全一致**。</summary>
     public static readonly ValueConverter<DateTime, string> UtcTsConverter = new(
         utc => utc.ToUniversalTime().ToString(TsFormat, CultureInfo.InvariantCulture),
         text => DateTime.ParseExact(
@@ -87,7 +87,7 @@ public sealed class DeviceMonitorDbContext : DbContext
 
     /// <summary>
     /// 建表 / 建索引（幂等，与设计文档 §6.5 一致）。
-    /// 列名、列数、索引名都和 D19 那版手写 SQL **逐字相同** —— 老库直接沿用，不需要迁移。
+    /// 列名、列数、索引名都和那版手写 SQL **逐字相同** —— 老库直接沿用，不需要迁移。
     /// </summary>
     public const string SchemaDdl =
         "CREATE TABLE IF NOT EXISTS history(" +
@@ -133,7 +133,7 @@ public sealed class DeviceMonitorDbContext : DbContext
             entity.Property(row => row.PointId).HasColumnName("point_id").IsRequired();
             entity.Property(row => row.Value).HasColumnName("value").IsRequired();
 
-            // 索引名与 DDL 一致：D20 的"按点位查区间"走 idx_history_point
+            // 索引名与 DDL 一致："按点位查区间"走 idx_history_point
             entity.HasIndex(row => row.Ts).HasDatabaseName("idx_history_time");
             entity.HasIndex(row => new { row.DeviceId, row.PointId, row.Ts })
                   .HasDatabaseName("idx_history_point");

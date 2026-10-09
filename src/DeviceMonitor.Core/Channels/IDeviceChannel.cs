@@ -2,7 +2,7 @@ namespace DeviceMonitor.Core.Channels;
 
 /// <summary>
 /// 设备通道抽象。v1 只有串口实现 <see cref="SerialChannel"/>；预留 TcpChannel 扩展点
-/// （面试可讲：加一个 TCP 实现即可支持 Modbus TCP，UI 与采集服务无需改动）。
+/// （加一个 TCP 实现即可支持 Modbus TCP，UI 与采集服务无需改动）。
 ///
 /// 通信语义约定为"一问一答"：
 ///   Write(frame) 发请求 → ReadFrame(expectedLength, timeout) 在超时内取回完整响应帧。
